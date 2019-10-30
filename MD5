@@ -1,7 +1,7 @@
-9ddee3483e6f65cc1a6c6c5d4776d12b *DESCRIPTION
+ba6e2c94e246c44b24f6b31c102db4a8 *DESCRIPTION
 99921d54ec275dd5abb260d0a43c1892 *LICENSE
 d76c5540e9bc9da9bda6171d3b4fafcd *NAMESPACE
-33bc91f772e835fefc9341346441095e *R/BayesSUR.R
+90f5fd15bb20232a6df87edada050ac5 *R/BayesSUR.R
 7a3a56eee37ca17f8ca240b2cfe59075 *R/RcppExports.R
 9dcddb85351f0fd55023fab3d86d0b14 *R/coef.BayesSUR.R
 953c773bfa2b0321a5f5dfb4dd5fbb0e *R/elpd.R
@@ -10,9 +10,9 @@ d76c5540e9bc9da9bda6171d3b4fafcd *NAMESPACE
 dfbb5a43d44e029d3aa2d0bc6712c9af *R/example_eQTL.R
 f7e637fdceecb5924e513de8bbf3d886 *R/fitted.BayesSUR.R
 3ea057ddad4bfc14d43a9ddf920ef5b3 *R/getEstimator.R
-5ff1cdc375dee1cb63c6622f176c02f8 *R/plot.BayesSUR.R
+821b30abd9df59ae7e282c599316eb18 *R/plot.BayesSUR.R
 f34e99bb6eaaa21ed87ada23e9d0d124 *R/plotCPO.R
-17f3e3acf5277ca62f02f484599654d1 *R/plotEstimator.R
+123772c34baf3b7e5d85e85ecfae11ef *R/plotEstimator.R
 b84b0f67c852b72969c72047678c7f19 *R/plotMCMCdiag.R
 9e4a9ec7ef16d312cb38bbe2af98428b *R/plotManhattan.R
 249431d9285de819ffea189f4f3c0a80 *R/plotNetwork.R
@@ -29,8 +29,8 @@ ca910efdcd4dcbcd1f706ae913f82759 *data/datalist
 847976ee73d343132e8725a89b35a2c6 *data/example_GDSC_targets.rda
 90ab90f7beaeef679706b6900c514d09 *data/example_eQTL.rda
 30d5c7d65f226521b51d47ae0a1e741a *inst/doc/BayesSUR.Rnw
-7b127614de4ed1b61281a270fb83a78b *inst/doc/BayesSUR.pdf
-ce4d6999e9c722ea88d0b59f9cda107e *man/BayesSUR.Rd
+4d3afdb3fd994501152110700e711084 *inst/doc/BayesSUR.pdf
+e0cf9b13b115d17a76d70ff2be110b40 *man/BayesSUR.Rd
 ef49d7f336a9735287bb707a90501152 *man/BayesSUR_internal.Rd
 5ac4fd3936803e49a5cfddac9ec1edc0 *man/coef.BayesSUR.Rd
 19075c05b51cf5a3a637d5950ff668ee *man/elpd.Rd
@@ -39,9 +39,9 @@ bd63bc4c37f64cd5b7a8731aef2610b6 *man/example_GDSC.Rd
 594ff667c721e5d691bda4e188b89de4 *man/example_eQTL.Rd
 ce1ddb9cfe7c1dd8bbc2786195e10828 *man/fitted.BayesSUR.Rd
 7823466d1a834cc07f6d826bad1b86aa *man/getEstimator.Rd
-26b4d586870980305b30bc29e28d5e42 *man/plot.BayesSUR.Rd
+5c012e9e13c604f3e943ceae89081ba2 *man/plot.BayesSUR.Rd
 4ceaa715ba2af598dfafd1d6063b5402 *man/plotCPO.Rd
-7255c879792f2e45ecc731e5bc029fc7 *man/plotEstimator.Rd
+9c0ceeac0730c5fe876c11d5e6c59962 *man/plotEstimator.Rd
 8d6ad05f88632e1c8d6edfb697eaf176 *man/plotMCMCdiag.Rd
 17a0855b4f9287298db847169acee015 *man/plotManhattan.Rd
 3feab4df7b2cb532362a85888d3bd09e *man/plotNetwork.Rd
@@ -66,7 +66,7 @@ abae20aa016261976108b62a759728e0 *src/drive.cpp
 480fb249f02ec4fb6d0024f89254f7b1 *src/drive.h
 8acbc64ba7e0a0912f10bcafe731124d *src/global.cpp
 05971c41479eb71ad67b5c2a86cb004d *src/global.h
-5cc4df8e0020ee4ea088e20a00023ec0 *src/junction_tree.cpp
+6b3dc1bd4ae595c9ca5e6c366aa43a74 *src/junction_tree.cpp
 936f6498c84af9735fd86d1bb1ef66a0 *src/junction_tree.h
 63fb7f837f5ead3567c138071d25469d *src/pugiconfig.hpp
 de6a3a398869dac144a35411cb2053b8 *src/pugixml.cpp
@@ -74,4 +74,4 @@ c3f3d20a57bbff9ca6265681604a7ad4 *src/pugixml.hpp
 fc1dafc4408305c9c7712b83ead6949b *src/utils.cpp
 a5a05605f6a823ae9ca797219391f088 *src/utils.h
 30d5c7d65f226521b51d47ae0a1e741a *vignettes/BayesSUR.Rnw
-b237c1c4d774e4f19637efdb404eedba *vignettes/vignettes.pdf
+aa7a0ed5f1f5afa08e881989f9d592fa *vignettes/vignettes.pdf
