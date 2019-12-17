@@ -8,8 +8,8 @@
 #' 
 #' @examples
 #' # Load the indexes of gene targets from the GDSC sample dataset
-#' data("example_GDSC_targets", package = "BayesSUR")
-#' str(example_GDSC_targets)
+#' data("targetGene", package = "BayesSUR")
+#' str(targetGene)
 #' 
 #' \dontrun{
 #' #===============
@@ -188,10 +188,10 @@
 #' targetGenes2 <- matrix(Idx_Pathway2,nrow=1)
 #' colnames(targetGenes2) <- colnames(example_GDSC$data)[seq_along(targetGene$group2)]
 #' 
-#' example_GDSC_targets <- list(group1=targetGenes1, group2=targetGenes2)
+#' targetGene <- list(group1=targetGenes1, group2=targetGenes2)
 #' 
-#' ## Write data file example_GDSC_targets.rda to the user's directory by save()
+#' ## Write data file targetGene.rda to the user's directory by save()
 #' 
 #' }
 #'
-"example_GDSC_targets"
+"targetGene"
