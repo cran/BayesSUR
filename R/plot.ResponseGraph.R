@@ -3,8 +3,8 @@
 #' Plot the estimated graph for multiple response variables from a "BayesSUR" class object.
 #' @importFrom igraph V E plot.igraph graph_from_adjacency_matrix V<-
 #' @importFrom graphics par
-#' @name plotResponseGraph
-#' @param object an object of class "BayesSUR"
+#' @name plot.ResponseGraph
+#' @param x an object of class \code{getEstimator} with \code{estimator="Gy"}
 #' @param PmaxResponse cutpoint for thresholding the learning structure matrix of multiple response variables. Default is 0.5
 #' @param PtrueResponse true adjacency matrix for the structure of multiple response variables
 #' @param name.responses A vector for the node names. The default is "NA" only to show the locations. Value "auto" show the response names from the orginal data. 
@@ -18,6 +18,7 @@
 #' data("example_eQTL", package = "BayesSUR")
 #' hyperpar <- list( a_w = 2 , b_w = 5 )
 #' 
+#' set.seed(9173)
 #' fit <- BayesSUR(Y = example_eQTL[["blockList"]][[1]], 
 #'                 X = example_eQTL[["blockList"]][[2]],
 #'                 data = example_eQTL[["data"]], outFilePath = tempdir(),
@@ -26,18 +27,15 @@
 #' 
 #' ## check output
 #' # show the graph relationship between responses
-#' plotResponseGraph(fit)
+#' Gy <- getEstimator(fit, estimator = "Gy")
+#' plot(Gy)
 #' 
 #' @export
-plotResponseGraph <- function(object, PmaxResponse=0.5, PtrueResponse=NULL, name.responses=NA, edge.weight=FALSE, label.color="black", node.size=30, node.color="dodgerblue", ...){
+plot.ResponseGraph <- function(x, PmaxResponse=0.5, PtrueResponse=NULL, name.responses=NA, edge.weight=FALSE, label.color="black", node.size=30, node.color="dodgerblue", ...){
   
-  object$output[-1] <- paste(object$output$outFilePath,object$output[-1],sep="")
-  Gy_hat <- as.matrix( read.table(object$output$G) )
-  
+  Gy_hat <- x
   if(!is.na(name.responses)){
     rownames(Gy_hat) <- colnames(Gy_hat) <- name.responses
-  }else{
-    rownames(Gy_hat) <- colnames(Gy_hat) <- names(read.table(object$output$Y,header=T))
   }
   
   if(edge.weight){

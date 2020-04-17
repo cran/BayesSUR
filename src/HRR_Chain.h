@@ -29,17 +29,17 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
         // Constructors
         // *******************************
 
-        HRR_Chain( std::shared_ptr<arma::mat> data_, unsigned int nObservations,
+        HRR_Chain( std::shared_ptr<arma::mat> data_, std::shared_ptr<arma::mat> mrfG_, unsigned int nObservations,
             unsigned int nOutcomes, unsigned int nVSPredictors, unsigned int nFixedPredictors,
             std::shared_ptr<arma::uvec> outcomesIdx_, std::shared_ptr<arma::uvec> VSPredictorsIdx_,
             std::shared_ptr<arma::uvec> fixedPredictorIdx_, std::shared_ptr<arma::umat> missingDataArrayIdx_, std::shared_ptr<arma::uvec> completeCases_, 
             Gamma_Sampler_Type gamma_sampler_type_ , Gamma_Type gamma_type_ ,
-            Beta_Type beta_type_ , Covariance_Type covariance_type_ ,
+            Beta_Type beta_type_ , Covariance_Type covariance_type_ , bool output_CPO = false,
             double externalTemperature = 1. );
 
         HRR_Chain( Utils::SUR_Data& surData,
             Gamma_Sampler_Type gamma_sampler_type_ , Gamma_Type gamma_type_ ,
-            Beta_Type beta_type_ , Covariance_Type covariance_type_ ,
+            Beta_Type beta_type_ , Covariance_Type covariance_type_ , bool output_CPO = false,
             double externalTemperature = 1. );
 
         HRR_Chain( Utils::SUR_Data& surData, double externalTemperature = 1. );
@@ -55,8 +55,10 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
 
         // data
         inline std::shared_ptr<arma::mat> getData() const{ return data ; }
-
         inline arma::mat& getXtX(){ return XtX ; }
+
+        // mrfG
+        inline std::shared_ptr<arma::mat> getMRFG() const{ return mrfG ; }
 
         inline unsigned int getN() const{ return nObservations ; }
         inline unsigned int getP() const{ return nFixedPredictors+nVSPredictors ; }
@@ -164,8 +166,8 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
         // no setter for this, dedicated setter below
 
         // MRF
-        inline arma::mat& getMRFG() { return mrf_G; }
-        void setMRFG( arma::mat& mrf_G_ ) { mrf_G = mrf_G_; logPGamma(); }
+        //inline arma::mat& getMRFG() { return mrf_G; }
+        //void setMRFG( arma::mat& mrf_G_ ) { mrf_G = mrf_G_; logPGamma(); }
 
         double getGammaD() const;
         void setGammaD( double );
@@ -210,6 +212,27 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
         double getLogPW() const;
         // no setter for this, dedicated setter below
         
+        // W0
+        double getW0() const;
+        void setW0( double );
+        void setW0( double , double );
+
+        double getW0A() const;
+        void setW0A( double );
+          
+        double getW0B() const;
+        void setW0B( double );
+
+        void setW0AB( double, double );
+
+        double getVarW0Proposal() const;
+        void setVarW0Proposal( double );
+
+        double getW0AccRate() const;
+
+        double getLogPW0() const;
+        // no setter for this, dedicated setter below
+    
         // get Beta, here we get a sample from the posterior for output reasons
         arma::mat& getBeta() const;
     
@@ -252,7 +275,7 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
         void piInit( arma::vec& , double , double , double );
 
         void mrfGInit();
-        void mrfGInit( arma::mat& );
+        //void mrfGInit( arma::mat& );
 
         void gammaInit();
         void gammaInit( arma::umat& );
@@ -261,6 +284,11 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
         void wInit( double );
         void wInit( double , double , double );
         void wInit( double , double , double , double );
+    
+        void w0Init();
+        void w0Init( double );
+        void w0Init( double , double , double );
+        void w0Init( double , double , double , double );
 
         // *****************************
         // Methods for Log Probabilities
@@ -287,12 +315,17 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
         double logPGamma( const arma::umat& );
         double logPGamma( const arma::umat& , const arma::vec& , const arma::vec& );
         double logPGamma( const arma::umat& , const arma::vec& );
-        double logPGamma( const arma::umat& , double , double , const arma::mat& );
+        double logPGamma( const arma::umat& , double , double );
 
         // W
         double logPW( );
         double logPW( double );
         double logPW( double , double , double );
+    
+        // W0
+        double logPW0( );
+        double logPW0( double );
+        double logPW0( double , double , double );
     
         // PREDICTIVE LIKELIHOODS
         arma::mat predLikelihood();
@@ -308,7 +341,7 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
         double logLikelihood( arma::umat& , const arma::umat& ); //gammaMask , gamma 
 
         // with full arguments for computing using different values
-        double logLikelihood( const arma::umat& , const double , const double , const double); //gammaMask , w, a_sigma, b_sigma
+        double logLikelihood( const arma::umat& , const double , const double , const double , const double); //gammaMask , w, w0, a_sigma, b_sigma
 
 
         // *********************
@@ -325,6 +358,7 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
         void stepOnePi();
         void stepPi();
         void stepW();
+        void stepW0();
 
         void stepGamma();
 
@@ -347,6 +381,7 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
         void swapPi( std::shared_ptr<HRR_Chain>& );
         void swapGamma( std::shared_ptr<HRR_Chain>& );
         void swapW( std::shared_ptr<HRR_Chain>& );
+        void swapW0( std::shared_ptr<HRR_Chain>& );
         
         int exchangeAll_step( std::shared_ptr<HRR_Chain>& );
         int exchangeGamma_step( std::shared_ptr<HRR_Chain>& );
@@ -374,6 +409,7 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
 
         // Data (and related quatities)
         std::shared_ptr<arma::mat> data;
+        std::shared_ptr<arma::mat> mrfG;
         std::shared_ptr<arma::uvec> outcomesIdx;
 
         std::shared_ptr<arma::uvec> predictorsIdx;
@@ -393,6 +429,7 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
         unsigned int nOutcomes; // number of outcomes
         unsigned int nVSPredictors; // number of predictors to be selected
         unsigned int nFixedPredictors; // number of predictors to be kept no matter what
+        bool output_CPO;
 
         // usefull quantities to keep track of
         arma::umat gammaMask;
@@ -408,6 +445,10 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
         double wEmpiricalM2;
         arma::vec oEmpiricalM2, piEmpiricalM2; // second moment ( nb, all on the log-scale )
         double var_w_proposal_init, var_o_proposal_init, var_pi_proposal_init ;
+    
+        double w0EmpiricalMean;
+        double w0EmpiricalM2;
+        double var_w0_proposal_init;
 
         // Bandit-sampling related quantities
         unsigned int n_updates_bandit;
@@ -467,6 +508,12 @@ class HRR_Chain : public ESS_Atom<HRR_Chain>
         double w_acc_count; // acceptance rate of the RW proposal
         double a_w,b_w;
         double logP_w;
+    
+        double w0;
+        double var_w0_proposal; // variance of the normal RW proposal
+        double w0_acc_count; // acceptance rate of the RW proposal
+        double a_w0,b_w0;
+        double logP_w0;
 
         // **************************
         // LOG-LIKELIHOOD FOR THE HRR MODEL

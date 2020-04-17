@@ -11,7 +11,12 @@ using Rcpp::Rcerr;
 #ifdef _OPENMP
 extern omp_lock_t RNGlock; //defined in global.h
 #endif
-extern std::vector<std::mt19937_64> rng;
+//extern std::vector<std::mt19937_64> rng;
+
+#include <Rcpp.h>
+// [[Rcpp::plugins(openmp)]]
+
+
 
 using Utils::Chain_Data;
 
@@ -24,7 +29,7 @@ int drive_SUR( Chain_Data& chainData )
     Rcout << "Initialising the (SUR) MCMC Chain";
     
     ESS_Sampler<SUR_Chain> sampler( chainData.surData , chainData.nChains , 1.2 ,
-                                   chainData.gamma_sampler_type, chainData.gamma_type, chainData.beta_type, chainData.covariance_type);
+                                   chainData.gamma_sampler_type, chainData.gamma_type, chainData.beta_type, chainData.covariance_type, chainData.output_CPO );
     
     Rcout << " ... ";
     
@@ -117,10 +122,14 @@ int drive_SUR( Chain_Data& chainData )
         ModelSizeOutFile.open( outFilePrefix+"model_size_out.txt" , std::ios_base::app); // note we don't close!
     }
     
+    std::ofstream GVisitOutFile;
     std::ofstream ModelVisitGammaOutFile;
     std::ofstream ModelVisitGOutFile;
     if( chainData.output_model_visit )
     {
+        GVisitOutFile.open( outFilePrefix+"G_visit.txt", std::ios::out | std::ios::trunc); GVisitOutFile.close();
+        GVisitOutFile.open( outFilePrefix+"G_visit.txt" , std::ios_base::app); // note we don't close!
+        
         ModelVisitGammaOutFile.open( outFilePrefix+"model_visit_gamma_out.txt", std::ios::out | std::ios::trunc); ModelVisitGammaOutFile.close();
         ModelVisitGammaOutFile.open( outFilePrefix+"model_visit_gamma_out.txt" , std::ios_base::app); // note we don't close!
         
@@ -130,7 +139,8 @@ int drive_SUR( Chain_Data& chainData )
     
     // Output to file the initial state (if burnin=0)
     arma::umat gamma_out; // out var for the gammas
-    arma::umat g_out; // out var for G
+    arma::umat g_out, tmpG; // out var for G and tmpG
+    arma::urowvec g_visit; // out var for visted G (vectorized upper triangle)
     arma::mat beta_out; // out var for the betas
     arma::mat sigmaRho_out; // out var for the sigmas and rhos
     arma::vec tmpVec; // temporary to store the pi parameter vector
@@ -139,7 +149,7 @@ int drive_SUR( Chain_Data& chainData )
     arma::mat cpo_out, predLik;
     arma::vec cposumy_out; // CPO with each element summerizing all response variables
     arma::mat lpd, waic_out, waic_frac_sum;
-    
+
     if( chainData.burnin == 0 )
     {
         if ( chainData.output_gamma )
@@ -152,7 +162,8 @@ int drive_SUR( Chain_Data& chainData )
         
         if ( chainData.covariance_type == Covariance_Type::HIW && chainData.output_G )
         {
-            g_out = arma::umat( sampler[0] -> getGAdjMat() );
+            tmpG = arma::umat( sampler[0] -> getGAdjMat() );
+            g_out = tmpG;
             gOutFile.open( outFilePrefix+"G_out.txt" , std::ios_base::trunc);
             gOutFile << ( arma::conv_to<arma::mat>::from(g_out) );   // this might be quite long...
             gOutFile.close();
@@ -191,7 +202,11 @@ int drive_SUR( Chain_Data& chainData )
         if ( chainData.output_gamma )
             gamma_out = sampler[0] -> getGamma();
         if ( chainData.covariance_type == Covariance_Type::HIW && chainData.output_G )
-            g_out = arma::umat( sampler[0] -> getGAdjMat() );
+        {
+            tmpG = arma::umat( sampler[0] -> getGAdjMat() );
+            g_out = tmpG;
+        }
+            
         if ( chainData.output_beta )
             beta_out = sampler[0] -> getBeta();
         if ( chainData.output_sigmaRho )
@@ -230,6 +245,14 @@ int drive_SUR( Chain_Data& chainData )
     
     if ( chainData.output_model_visit )
     {
+        g_visit.clear();
+        for(unsigned int k=0; k < tmpG.n_cols-1; ++k)
+        {
+            g_visit = join_rows( g_visit, tmpG.submat(k,k+1, k,tmpG.n_cols-1) );
+        }
+        GVisitOutFile << g_visit << " ";
+        GVisitOutFile << '\n';
+        
         ModelVisitGammaOutFile << arma::find((sampler[0] -> getGamma()) == 1).t() << " ";
         ModelVisitGammaOutFile << '\n';
         
@@ -262,7 +285,7 @@ int drive_SUR( Chain_Data& chainData )
     for(unsigned int i=1; i < chainData.nIter ; ++i)
     {
         sampler.step();
-        
+       
         // #################### END LOCAL MOVES
         
         // ## Global moves
@@ -275,7 +298,10 @@ int drive_SUR( Chain_Data& chainData )
                 gamma_out += sampler[0] -> getGamma(); // the result of the whole procedure is now my new mcmc point, so add that up
             
             if ( chainData.covariance_type == Covariance_Type::HIW && chainData.output_G )
-                g_out += arma::umat( sampler[0] -> getGAdjMat() );
+            {
+                tmpG = arma::umat( sampler[0] -> getGAdjMat() );
+                g_out += tmpG;
+            }
             
             if ( chainData.output_beta )
                 beta_out += sampler[0] -> getBeta();
@@ -309,6 +335,9 @@ int drive_SUR( Chain_Data& chainData )
             }
             
             // Nothing to update for model size
+        }else{
+            if ( chainData.covariance_type == Covariance_Type::HIW && chainData.output_G )
+                tmpG = arma::umat( sampler[0] -> getGAdjMat() );
         }
         
         if ( chainData.output_model_visit )
@@ -388,6 +417,15 @@ int drive_SUR( Chain_Data& chainData )
                 
                 if ( chainData.output_model_size )
                 {
+                    //g_visit = arma::conv_to<arma::urowvec>::from( arma::trimatu(tmpG, 1) );
+                    g_visit.clear();
+                    for(unsigned int k=0; k < tmpG.n_cols-1; ++k)
+                    {
+                        g_visit = join_rows( g_visit, tmpG.submat(k,k+1, k,tmpG.n_cols-1) );
+                    }
+                    GVisitOutFile << g_visit << " ";
+                    GVisitOutFile << '\n';
+                    
                     ModelSizeOutFile << sampler[0]->getModelSize() << " ";
                     ModelSizeOutFile << '\n';
                 }
@@ -433,6 +471,8 @@ int drive_SUR( Chain_Data& chainData )
         ModelSizeOutFile << '\n';
         ModelSizeOutFile.close();
     }
+    
+    GVisitOutFile.close();
     
     if ( chainData.output_model_visit )
     {
@@ -507,7 +547,7 @@ int drive_HRR( Chain_Data& chainData )
     Rcout << "Initialising the (HRR) MCMC Chain ";
     
     ESS_Sampler<HRR_Chain> sampler( chainData.surData , chainData.nChains , 1.2 ,
-                                   chainData.gamma_sampler_type, chainData.gamma_type, chainData.beta_type, chainData.covariance_type);
+                                   chainData.gamma_sampler_type, chainData.gamma_type, chainData.beta_type, chainData.covariance_type, chainData.output_CPO );
     
     Rcout << " ... ";
     // *****************************
@@ -997,6 +1037,8 @@ int drive( const std::string& dataFile, const std::string& mrfGFile, const std::
         chainData.beta_type = Beta_Type::gprior ;
     else if ( betaPrior == "independent" )
         chainData.beta_type = Beta_Type::independent ;
+    else if ( betaPrior == "reGroup" )
+        chainData.beta_type = Beta_Type::reGroup ;
     else
     {
         Rcout << betaPrior << "\n";
@@ -1089,12 +1131,12 @@ int drive( const std::string& dataFile, const std::string& mrfGFile, const std::
             throw Bad_Covariance_Type( chainData.covariance_type );
     }
     
-    Rcout << "Init RNG engine .. ";
+    //Rcout << "Init RNG engine .. ";
     
     // ############# Init the RNG generator/engine
-    std::random_device r;
-    unsigned int nThreads{1};
-    
+    //std::random_device r;
+    //unsigned int nThreads{1};
+    //Rcpp::RNGScope scope;
 #ifdef _OPENMP
     // ENABLING NESTED PARALLELISM SEEMS TO SLOW DOWN CODE MORE THAN ANYTHING,
     // I SUSPECT THE THREAD MANAGING OVERHEAD IS GREATER THAN EXPECTED
@@ -1110,22 +1152,24 @@ int drive( const std::string& dataFile, const std::string& mrfGFile, const std::
     {
         nThreads = std::min( 16, omp_get_max_threads()-1 ); //TODO: make 16 as parameter, note I still use -1 to allow PC to do work in the meantime
     }*/
-    nThreads = maxThreads;
-    omp_set_num_threads(  nThreads );
-#endif
     
+    //nThreads = std::min( omp_get_max_threads()-1, maxThreads );
+    omp_set_num_threads(  std::min( omp_get_max_threads()-1, maxThreads ) );
+#endif
+    /*
     // rng.reserve(nThreads);  // reserve the correct space for the vector of rng engines
     rng = std::vector<std::mt19937_64>(nThreads);
     std::seed_seq seedSeq;    // and declare the seedSequence
     std::vector<unsigned int> seedInit(8);
-    long long int seed = std::chrono::system_clock::now().time_since_epoch().count();
-    
+    //long long int seed = std::chrono::system_clock::now().time_since_epoch().count();
+    //int seed = 123;
+    //Rcerr  << "Debug seed - seed: " << seed << '\n';
     // seed all the engines
     for(unsigned int i=0; i<nThreads; ++i)
     {
         rng[i] = std::mt19937_64(seed + i*(1000*(std::pow(chainData.surData.nOutcomes,3)*chainData.surData.nPredictors*3)*nIter) );
     }
-    
+    */
     Rcout << " DONE ! " << '\n';
     
     // ###################################
@@ -1139,6 +1183,7 @@ int drive( const std::string& dataFile, const std::string& mrfGFile, const std::
         for(unsigned int j=0; j<chainData.surData.nVSPredictors; ++j)
             for(unsigned int l=0; l< chainData.surData.nOutcomes; ++l)
                 chainData.gammaInit(j,l) = Distributions::randBernoulli( 0.5 );
+                //chainData.gammaInit(j,l) = Rcpp::rbinom( 1, 1, 0.5 )[0];
         
     }else if( gammaInit == "1" ){
         // Static Init ***

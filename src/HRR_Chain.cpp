@@ -12,14 +12,14 @@
 // Constructors
 // *******************************
 
-HRR_Chain::HRR_Chain( std::shared_ptr<arma::mat> data_, unsigned int nObservations_,
+HRR_Chain::HRR_Chain( std::shared_ptr<arma::mat> data_, std::shared_ptr<arma::mat> mrfG_, unsigned int nObservations_,
                      unsigned int nOutcomes_, unsigned int nVSPredictors_, unsigned int nFixedPredictors_,
                      std::shared_ptr<arma::uvec> outcomesIdx_, std::shared_ptr<arma::uvec> VSPredictorsIdx_,
                      std::shared_ptr<arma::uvec> fixedPredictorsIdx_, std::shared_ptr<arma::umat> missingDataArrayIdx_, std::shared_ptr<arma::uvec> completeCases_,
                      Gamma_Sampler_Type gamma_sampler_type_ , Gamma_Type gamma_type_ ,
-                     Beta_Type beta_type_ , Covariance_Type covariance_type_ ,
+                     Beta_Type beta_type_ , Covariance_Type covariance_type_ , bool output_CPO ,
                      double externalTemperature ):
-data(data_), outcomesIdx(outcomesIdx_), VSPredictorsIdx(VSPredictorsIdx_), fixedPredictorsIdx(fixedPredictorsIdx_),
+data(data_), mrfG(mrfG_), outcomesIdx(outcomesIdx_), VSPredictorsIdx(VSPredictorsIdx_), fixedPredictorsIdx(fixedPredictorsIdx_),
 missingDataArrayIdx(missingDataArrayIdx_), completeCases(completeCases_),
 nObservations(nObservations_), nOutcomes(nOutcomes_), nVSPredictors(nVSPredictors_), nFixedPredictors(nFixedPredictors_),
 temperature(externalTemperature),internalIterationCounter(0),
@@ -69,27 +69,30 @@ covariance_type(covariance_type_),gamma_type(gamma_type_),beta_type(beta_type_),
     updateGammaMask();
     
     wInit();
+    w0Init();
     
     sigmaABInit();
     
     logLikelihood();
-    predLikelihood();
+    if( output_CPO ){
+        predLikelihood();
+    }
     
 }
 
 
 HRR_Chain::HRR_Chain( Utils::SUR_Data& surData,
                      Gamma_Sampler_Type gamma_sampler_type_ , Gamma_Type gamma_type_ ,
-                     Beta_Type beta_type_ , Covariance_Type covariance_type_ ,
+                     Beta_Type beta_type_ , Covariance_Type covariance_type_ , bool output_CPO ,
                      double externalTemperature ):
-HRR_Chain(surData.data,surData.nObservations,surData.nOutcomes,surData.nVSPredictors,surData.nFixedPredictors,
+HRR_Chain(surData.data,surData.mrfG,surData.nObservations,surData.nOutcomes,surData.nVSPredictors,surData.nFixedPredictors,
 surData.outcomesIdx,surData.VSPredictorsIdx,surData.fixedPredictorsIdx,surData.missingDataArrayIdx,surData.completeCases,
-          gamma_sampler_type_,gamma_type_,beta_type_,covariance_type_,externalTemperature){ }
+          gamma_sampler_type_,gamma_type_,beta_type_,covariance_type_,output_CPO,externalTemperature){ }
 
 HRR_Chain::HRR_Chain( Utils::SUR_Data& surData, double externalTemperature ):
-HRR_Chain(surData.data,surData.nObservations,surData.nOutcomes,surData.nVSPredictors,surData.nFixedPredictors,
+HRR_Chain(surData.data,surData.mrfG,surData.nObservations,surData.nOutcomes,surData.nVSPredictors,surData.nFixedPredictors,
 surData.outcomesIdx,surData.VSPredictorsIdx,surData.fixedPredictorsIdx,surData.missingDataArrayIdx,surData.completeCases,
-          Gamma_Sampler_Type::bandit , Gamma_Type::hotspot , Beta_Type::independent , Covariance_Type::IG ,
+          Gamma_Sampler_Type::bandit , Gamma_Type::hotspot , Beta_Type::independent , Covariance_Type::IG , false ,
           externalTemperature){ }
 
 // *******************************
@@ -429,6 +432,51 @@ double HRR_Chain::getWAccRate() const{ return w_acc_count/(double)internalIterat
 double HRR_Chain::getLogPW() const{ return logP_w; }
 // no setter for this, dedicated setter below
 
+// W0
+double HRR_Chain::getW0() const{ return w0 ; }
+void HRR_Chain::setW0( double w0_ )
+{
+  w0 = w0_ ;
+  logPW0();
+  logLikelihood();
+}
+
+void HRR_Chain::setW0( double w0_ , double logP_w0_ )
+{
+  w0 = w0_ ;
+  logP_w0 = logP_w0_ ;
+  logLikelihood();
+}
+
+double HRR_Chain::getW0A() const{ return a_w0 ; }
+void HRR_Chain::setW0A( double a_w0_ )
+{
+  a_w0 = a_w0_ ;
+  logPW0();
+}
+
+double HRR_Chain::getW0B() const{ return b_w0 ; }
+void HRR_Chain::setW0B( double b_w0_ )
+{
+  b_w0 = b_w0_ ;
+  logPW0();
+}
+
+void HRR_Chain::setW0AB( double a_w0_ , double b_w0_ )
+{
+  a_w0 = a_w0_ ;
+  b_w0 = b_w0_ ;
+  logPW0();
+}
+
+double HRR_Chain::getVarW0Proposal() const{ return var_w0_proposal ; }
+void HRR_Chain::setVarW0Proposal( double var_w0_proposal_ ){ var_w0_proposal = var_w0_proposal_ ; }
+
+double HRR_Chain::getW0AccRate() const{ return w0_acc_count/(double)internalIterationCounter ; }
+
+double HRR_Chain::getLogPW0() const{ return logP_w0; }
+// no setter for this, dedicated setter below
+
 arma::mat& HRR_Chain::getBeta() const
 {
     // Init to zero
@@ -456,6 +504,13 @@ arma::mat& HRR_Chain::getBeta() const
                     break;
                 }
                     
+                case Beta_Type::reGroup :
+                {
+                    //W_k = arma::inv_sympd( XtX(VS_IN,VS_IN)/temperature + 1./w * arma::eye<arma::mat>(VS_IN.n_elem,VS_IN.n_elem) );
+                    W_k = arma::inv_sympd( XtX(VS_IN,VS_IN)/temperature + arma::diagmat( arma::join_cols(1./w0*arma::ones(nFixedPredictors),1./w*arma::ones(VS_IN.n_elem-nFixedPredictors)) ) );
+                    break;
+                }
+                    
                 default:
                     throw Bad_Beta_Type ( beta_type );
             }
@@ -474,6 +529,13 @@ arma::mat& HRR_Chain::getBeta() const
                 {
                     W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN) ).t() * data->cols( (*predictorsIdx)(VS_IN) ) )/temperature + 1./w * arma::eye<arma::mat>(VS_IN.n_elem,VS_IN.n_elem) );
                     break;
+                }
+                    
+                case Beta_Type::reGroup :
+                {
+                  // W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN) ).t() * data->cols( (*predictorsIdx)(VS_IN) ) )/temperature + 1./w * arma::eye<arma::mat>(VS_IN.n_elem,VS_IN.n_elem) );
+                  W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN) ).t() * data->cols( (*predictorsIdx)(VS_IN) ) )/temperature + arma::diagmat( arma::join_cols(1./w0*arma::ones(nFixedPredictors),1./w*arma::ones(VS_IN.n_elem-nFixedPredictors)) ) );
+                  break;
                 }
                     
                 default:
@@ -499,7 +561,7 @@ void HRR_Chain::setLogLikelihood( double log_likelihood_ ){ log_likelihood = log
 
 double HRR_Chain::getJointLogPrior() const
 {
-    return logP_o + logP_pi + logP_gamma + logP_w;
+    return logP_o + logP_pi + logP_gamma + logP_w  + logP_w0;
 }
 
 double HRR_Chain::getJointLogPosterior() const
@@ -620,7 +682,7 @@ void HRR_Chain::mrfGInit()
     mrf_d = -3. ;
     mrf_e = 0.2 ;
 }
-
+/*
 void HRR_Chain::mrfGInit( arma::mat& mrf_G_ )
 {
     if( gamma_type != Gamma_Type::mrf )
@@ -630,7 +692,7 @@ void HRR_Chain::mrfGInit( arma::mat& mrf_G_ )
     mrf_d = -3. ;
     mrf_e = 0.2 ;
 }
-
+*/
 void HRR_Chain::gammaInit( arma::umat& gamma_init )
 {
     gamma = gamma_init;
@@ -672,6 +734,35 @@ void HRR_Chain::wInit( double w_init )
 void HRR_Chain::wInit()
 {
     wInit( 1. , 2. , 5. , 0.02 );
+}
+
+void HRR_Chain::w0Init( double w0_init , double a_w0_ , double b_w0_ , double var_w0_proposal_ )
+{
+  w0 = w0_init;
+  a_w0 = a_w0_;
+  b_w0 = b_w0_;
+
+  var_w0_proposal = var_w0_proposal_ ;
+
+  w0_acc_count = 0.;
+    
+  logPW0();
+}
+
+void HRR_Chain::w0Init( double w0_init , double a_w0_ , double b_w0_ )
+{
+  w0Init( w0_init , a_w0_ , b_w0_ , 0.02 );
+}
+
+
+void HRR_Chain::w0Init( double w0_init )
+{
+  w0Init( w0_init , 2. , 5. , 0.02 );
+}
+
+void HRR_Chain::w0Init()
+{
+  w0Init( 1. , 2. , 5. , 0.02 );
 }
 
 // *****************************
@@ -794,20 +885,31 @@ double HRR_Chain::logPGamma( const arma::umat& externalGamma , const arma::vec& 
 }
 
 // this is the MRF prior
-double HRR_Chain::logPGamma( const arma::umat& externalGamma , double external_d , double external_e, const arma::mat& externalMRFG )
+double HRR_Chain::logPGamma( const arma::umat& externalGamma , double d , double e )
 {
     if( gamma_type != Gamma_Type::mrf )
         throw Bad_Gamma_Type ( gamma_type );
     
+    arma::mat externalMRFG = mrfG->cols( arma::linspace<arma::uvec>(0,2,3) );
+    
     double logP = 0.;
-    // calculate the quadratic form in MRF by using all edges of G
+    // calculate the linear and quadratic parts in MRF by using all edges of G
     arma::vec gammaVec = arma::conv_to< arma::vec >::from(arma::vectorise(externalGamma));
-    double quad_mrf = 0;
+    double quad_mrf = 0.;
+    double linear_mrf = 0.;
+    int count_linear_mrf = 0;
     for( unsigned i=0; i < (externalMRFG).n_rows; ++i )
     {
-        quad_mrf += gammaVec( (externalMRFG)(i,0) ) * gammaVec( (externalMRFG)(i,1) );
+        if( (externalMRFG)(i,0) != (externalMRFG)(i,1) ){
+            quad_mrf += e * 2.0 * gammaVec( (externalMRFG)(i,0) ) * gammaVec( (externalMRFG)(i,1) ) * (externalMRFG)(i,2);
+        }else{
+                if( gammaVec( (externalMRFG)(i,0) ) == 1 ){
+                    linear_mrf += d * gammaVec( (externalMRFG)(i,0) ) * (externalMRFG)(i,2);
+                    count_linear_mrf ++;
+                }
+        }
     }
-    logP = arma::as_scalar( external_d * arma::accu( externalGamma ) + external_e * 2.0 * quad_mrf );
+    logP = arma::as_scalar( linear_mrf + d * (arma::accu( externalGamma ) - count_linear_mrf) + e * 2.0 * quad_mrf );
     
     return logP;
 }
@@ -827,7 +929,7 @@ double HRR_Chain::logPGamma( )
             
         case Gamma_Type::mrf :
         {
-            logP_gamma = logPGamma( gamma , mrf_d , mrf_e , mrf_G );
+            logP_gamma = logPGamma( gamma , mrf_d , mrf_e );
             break;
         }
         default:
@@ -852,7 +954,7 @@ double HRR_Chain::logPGamma( const arma::umat& externalGamma )
             
         case Gamma_Type::mrf :
         {
-            logP = logPGamma( externalGamma , mrf_d , mrf_e , mrf_G );
+            logP = logPGamma( externalGamma , mrf_d , mrf_e );
             break;
         }
         default:
@@ -879,12 +981,28 @@ double HRR_Chain::logPW( double w_ )
     return logPW( w_ , a_w , b_w );
 }
 
+// W0
+double HRR_Chain::logPW0( double w0_ , double a_w0_ , double b_w0_ )
+{
+  return Distributions::logPDFIGamma( w0_ , a_w0_, b_w0_ );
+}
+
+double HRR_Chain::logPW0( )
+{
+  logP_w0 = logPW0( w0 , a_w0 , b_w0 );
+  return logP_w0;
+}
+
+double HRR_Chain::logPW0( double w0_ )
+{
+  return logPW0( w0_ , a_w0 , b_w0 );
+}
+
 // PREDICTIVE LIKELIHOOD of the HRR model is not implemented
 arma::mat HRR_Chain::predLikelihood( )
 {
     return predLik;
 }
-
 
 // LOG LIKELIHOODS
 double HRR_Chain::logLikelihood( )
@@ -919,6 +1037,13 @@ double HRR_Chain::logLikelihood( )
                     break;
                 }
                     
+                case Beta_Type::reGroup :
+                {
+                  //W_k = arma::inv_sympd( XtX(VS_IN_k,VS_IN_k)/temperature + 1./w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
+                  W_k = arma::inv_sympd( XtX(VS_IN_k,VS_IN_k)/temperature + arma::diagmat( arma::join_cols(1./w0*arma::ones(nFixedPredictors),1./w*arma::ones(VS_IN_k.n_elem-nFixedPredictors)) ) );
+                  break;
+                }
+                    
                 default:
                     throw Bad_Beta_Type ( beta_type );
             }
@@ -936,6 +1061,13 @@ double HRR_Chain::logLikelihood( )
                 case Beta_Type::independent :
                 {
                     W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * data->cols( (*predictorsIdx)(VS_IN_k) ) )/temperature + 1./w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
+                    break;
+                }
+                    
+                case Beta_Type::reGroup :
+                {
+                    //W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * data->cols( (*predictorsIdx)(VS_IN_k) ) )/temperature + 1./w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
+                    W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * data->cols( (*predictorsIdx)(VS_IN_k) ) )/temperature + arma::diagmat( arma::join_cols(1./w0*arma::ones(nFixedPredictors),1./w*arma::ones(VS_IN_k.n_elem-nFixedPredictors)) ) );
                     break;
                 }
                     
@@ -961,17 +1093,19 @@ double HRR_Chain::logLikelihood( )
         logP += std::lgamma(a_sigma_k) - std::lgamma(a_sigma);
         
         // posterior predictive - t distribution after shifting and scaling by some quantities; from the multivariate t distribution p(y_tilde |y)
-        for( unsigned int j=0; j<nObservations; ++j )
-        {
-            double mu_scale, W_scale, t1, t2;
-            
-            mu_scale = (data->col(k))(j) - arma::as_scalar(arma::conv_to<arma::vec>::from(data->row(j))((*predictorsIdx)(VS_IN_k)).t() *mu_k);
-            W_scale = b_sigma_k/a_sigma_k * ( 1. + arma::as_scalar(arma::conv_to<arma::vec>::from(data->row(j))((*predictorsIdx)(VS_IN_k)).t() * W_k * arma::conv_to<arma::vec>::from(data->row(j))((*predictorsIdx)(VS_IN_k))) );
-            
-            t1 = std::lgamma(a_sigma_k+0.5) - 0.5*std::log(2.*a_sigma_k*M_PI) - 0.5*std::log( W_scale ) - std::lgamma(a_sigma_k);
-            t2 = -(a_sigma_k+0.5) * std::log( 1. + mu_scale*mu_scale/W_scale/2./a_sigma_k );
-            
-            predLik(j,k) = std::exp( t1+t2 );
+        if( output_CPO ){
+            for( unsigned int j=0; j<nObservations; ++j )
+            {
+                double mu_scale, W_scale, t1, t2;
+                
+                mu_scale = (data->col(k))(j) - arma::as_scalar(arma::conv_to<arma::vec>::from(data->row(j))((*predictorsIdx)(VS_IN_k)).t() *mu_k);
+                W_scale = b_sigma_k/a_sigma_k * ( 1. + arma::as_scalar(arma::conv_to<arma::vec>::from(data->row(j))((*predictorsIdx)(VS_IN_k)).t() * W_k * arma::conv_to<arma::vec>::from(data->row(j))((*predictorsIdx)(VS_IN_k))) );
+                
+                t1 = std::lgamma(a_sigma_k+0.5) - 0.5*std::log(2.*a_sigma_k*M_PI) - 0.5*std::log( W_scale ) - std::lgamma(a_sigma_k);
+                t2 = -(a_sigma_k+0.5) * std::log( 1. + mu_scale*mu_scale/W_scale/2./a_sigma_k );
+                
+                predLik(j,k) = std::exp( t1+t2 );
+            }
         }
         
     }
@@ -1012,6 +1146,13 @@ double HRR_Chain::logLikelihood( const arma::umat&  externalGammaMask )
                     break;
                 }
                     
+                case Beta_Type::reGroup :
+            {
+                //W_k = arma::inv_sympd( XtX(VS_IN_k,VS_IN_k)/temperature + 1./w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
+                W_k = arma::inv_sympd( XtX(VS_IN_k,VS_IN_k)/temperature + arma::diagmat( arma::join_cols(1./w0*arma::ones(nFixedPredictors),1./w*arma::ones(VS_IN_k.n_elem-nFixedPredictors)) ) );
+                break;
+            }
+                    
                 default:
                     throw Bad_Beta_Type ( beta_type );
             }
@@ -1029,6 +1170,13 @@ double HRR_Chain::logLikelihood( const arma::umat&  externalGammaMask )
                 case Beta_Type::independent :
                 {
                     W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * data->cols( (*predictorsIdx)(VS_IN_k) ) )/temperature + 1./w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
+                    break;
+                }
+                    
+                case Beta_Type::reGroup :
+                {
+                    //W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * data->cols( (*predictorsIdx)(VS_IN_k) ) )/temperature + 1./w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
+                    W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * data->cols( (*predictorsIdx)(VS_IN_k) ) )/temperature + arma::diagmat( arma::join_cols(1./w0*arma::ones(nFixedPredictors),1./w*arma::ones(VS_IN_k.n_elem-nFixedPredictors)) ) );
                     break;
                 }
                     
@@ -1092,6 +1240,13 @@ double HRR_Chain::logLikelihood( arma::umat& externalGammaMask , const arma::uma
                     break;
                 }
                     
+                case Beta_Type::reGroup :
+                {
+                  //W_k = arma::inv_sympd( XtX(VS_IN_k,VS_IN_k)/temperature + 1./w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
+                  W_k = arma::inv_sympd( XtX(VS_IN_k,VS_IN_k)/temperature +  arma::diagmat( arma::join_cols(1./w0*arma::ones(nFixedPredictors),1./w*arma::ones(VS_IN_k.n_elem-nFixedPredictors)) ) );
+                  break;
+                }
+                    
                 default:
                     throw Bad_Beta_Type ( beta_type );
             }
@@ -1110,6 +1265,13 @@ double HRR_Chain::logLikelihood( arma::umat& externalGammaMask , const arma::uma
                 {
                     W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * data->cols( (*predictorsIdx)(VS_IN_k) ) )/temperature + 1./w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
                     break;
+                }
+                    
+                case Beta_Type::reGroup :
+                {
+                  //W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * data->cols( (*predictorsIdx)(VS_IN_k) ) )/temperature + 1./w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
+                  W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * data->cols( (*predictorsIdx)(VS_IN_k) ) )/temperature +  arma::diagmat( arma::join_cols(1./w0*arma::ones(nFixedPredictors),1./w*arma::ones(VS_IN_k.n_elem-nFixedPredictors)) ) );
+                  break;
                 }
                     
                 default:
@@ -1139,7 +1301,7 @@ double HRR_Chain::logLikelihood( arma::umat& externalGammaMask , const arma::uma
     
 }
 
-double HRR_Chain::logLikelihood( const arma::umat& externalGammaMask , const double externalW , const double externalA_sigma, const double externalB_sigma)
+double HRR_Chain::logLikelihood( const arma::umat& externalGammaMask , const double externalW, const double externalW0 , const double externalA_sigma, const double externalB_sigma)
 {
     
     double logP{0};
@@ -1170,6 +1332,13 @@ double HRR_Chain::logLikelihood( const arma::umat& externalGammaMask , const dou
                     break;
                 }
                     
+                case Beta_Type::reGroup :
+                {
+                    // W_k = arma::inv_sympd( XtX(VS_IN_k,VS_IN_k)/temperature + 1./externalW * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
+                    W_k = arma::inv_sympd( XtX(VS_IN_k,VS_IN_k)/temperature + arma::diagmat( arma::join_cols(1./externalW0*arma::ones(nFixedPredictors),1./externalW*arma::ones(VS_IN_k.n_elem-nFixedPredictors)) ) );
+                    break;
+                }
+                    
                 default:
                     throw Bad_Beta_Type ( beta_type );
             }
@@ -1188,6 +1357,13 @@ double HRR_Chain::logLikelihood( const arma::umat& externalGammaMask , const dou
                 {
                     W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * data->cols( (*predictorsIdx)(VS_IN_k) ) )/temperature + 1./externalW * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
                     break;
+                }
+                    
+                case Beta_Type::reGroup :
+                {
+                  //W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * data->cols( (*predictorsIdx)(VS_IN_k) ) )/temperature + 1./externalW * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
+                  W_k = arma::inv_sympd( ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * data->cols( (*predictorsIdx)(VS_IN_k) ) )/temperature + arma::diagmat( arma::join_cols(1./externalW0*arma::ones(nFixedPredictors),1./externalW*arma::ones(VS_IN_k.n_elem-nFixedPredictors)) ) );
+                  break;
                 }
                     
                 default:
@@ -1498,7 +1674,7 @@ void HRR_Chain::stepW()
     double proposedW = std::exp( std::log(w) + Distributions::randNormal(0.0, var_w_proposal) );
     
     double proposedWPrior = logPW( proposedW );
-    double proposedLikelihood = logLikelihood( gammaMask , proposedW , a_sigma , b_sigma );
+    double proposedLikelihood = logLikelihood( gammaMask , proposedW , proposedW , a_sigma , b_sigma );
     
     double logAccProb = (proposedWPrior + proposedLikelihood) - (logP_w + log_likelihood);
     
@@ -1509,6 +1685,30 @@ void HRR_Chain::stepW()
         log_likelihood = proposedLikelihood;
         
         ++w_acc_count;
+    }
+}
+
+void HRR_Chain::stepW0()
+{
+  double proposedW = std::exp( std::log(w) + Distributions::randNormal(0.0, var_w_proposal) );
+  double proposedW0 = std::exp( std::log(w0) + Distributions::randNormal(0.0, var_w0_proposal) );
+
+  double proposedWPrior = logPW( proposedW );
+  double proposedW0Prior = logPW0( proposedW0 );
+  double proposedLikelihood = logLikelihood( gammaMask , proposedW , proposedW0 , a_sigma , b_sigma );
+
+  double logAccProb = (proposedWPrior + proposedW0Prior + proposedLikelihood) - (logP_w + logP_w0 + log_likelihood);
+
+  if( Distributions::randLogU01() < logAccProb )
+    {
+      w = proposedW;
+      w0 = proposedW0;
+      logP_w = proposedWPrior;
+      logP_w0 = proposedW0Prior;
+      log_likelihood = proposedLikelihood;
+
+      ++w_acc_count;
+      //++w0_acc_count;
     }
 }
 
@@ -1653,6 +1853,10 @@ void HRR_Chain::updateProposalVariances()
         wEmpiricalM2 = 0.;
         var_w_proposal_init = var_w_proposal;
         
+        w0EmpiricalMean = w0;
+        w0EmpiricalM2 = 0.;
+        var_w0_proposal_init = var_w0_proposal;
+        
     }else if( internalIterationCounter > 1 )
     {
         // update running averages
@@ -1676,6 +1880,12 @@ void HRR_Chain::updateProposalVariances()
         wEmpiricalMean = wEmpiricalMean + ( delta / internalIterationCounter );
         delta2 = w - wEmpiricalMean;
         wEmpiricalM2 = wEmpiricalM2 + delta * delta2;
+        
+        // w0
+               delta = w0 - w0EmpiricalMean;
+               w0EmpiricalMean = w0EmpiricalMean + ( delta / internalIterationCounter );
+               delta2 = w0 - w0EmpiricalMean;
+               w0EmpiricalM2 = w0EmpiricalM2 + delta * delta2;
     }
     
     // Then if it's actually > n update the proposal variances
@@ -1690,6 +1900,7 @@ void HRR_Chain::updateProposalVariances()
             var_pi_proposal = adaptationFactor * var_pi_proposal_init + (1. - adaptationFactor) * (2.38*2.38) * arma::mean( piEmpiricalM2/(internalIterationCounter-1) );
         }
         var_w_proposal = adaptationFactor * var_w_proposal_init + (1. - adaptationFactor) * (2.38*2.38) * wEmpiricalM2/(internalIterationCounter-1);
+        var_w0_proposal = adaptationFactor * var_w0_proposal_init + (1. - adaptationFactor) * (2.38*2.38) * w0EmpiricalM2/(internalIterationCounter-1);
     }
 }
 
@@ -1732,6 +1943,14 @@ void HRR_Chain::swapW( std::shared_ptr<HRR_Chain>& that )
     
     this->setW( that->getW() );
     that->setW( par );
+}
+
+void HRR_Chain::swapW0( std::shared_ptr<HRR_Chain>& that )
+{
+  double par = this->getW0();
+
+  this->setW0( that->getW0() );
+  that->setW0( par );
 }
 
 int HRR_Chain::exchangeGamma_step( std::shared_ptr<HRR_Chain>& that )
@@ -2010,6 +2229,7 @@ void HRR_Chain::swapAll( std::shared_ptr<HRR_Chain>& thatChain )
     this->swapGamma( thatChain );
     
     this->swapW( thatChain );
+    this->swapW0( thatChain );
     
     // recompute likelihood
     this->logLikelihood();

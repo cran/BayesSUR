@@ -4,8 +4,8 @@
 #' @importFrom graphics text 
 #' @importFrom grDevices gray 
 #' @importFrom igraph V E gsize layout_in_circle plot.igraph degree layout.fruchterman.reingold delete.vertices graph.adjacency
-#' @name plotNetwork
-#' @param object an object of class "BayesSUR"
+#' @name plot.Network
+#' @param x an object of class \code{getEstimator} with \code{estimator=c("gamma","Gy")}
 #' @param includeResponse A vector of the response names which are shown in the network
 #' @param excludeResponse A vector of the response names which are not shown in the network
 #' @param includePredictor A vector of the predictor names which are shown in the network
@@ -36,6 +36,7 @@
 #' data("example_eQTL", package = "BayesSUR")
 #' hyperpar <- list( a_w = 2 , b_w = 5 )
 #' 
+#' set.seed(9173)
 #' fit <- BayesSUR(Y = example_eQTL[["blockList"]][[1]], 
 #'                 X = example_eQTL[["blockList"]][[2]],
 #'                 data = example_eQTL[["data"]], outFilePath = tempdir(),
@@ -44,20 +45,17 @@
 #' 
 #' ## check output
 #' # show the Network representation of the associations between responses and features
-#' plotNetwork(fit)
+#' network <- getEstimator(fit, estimator = c("gamma","Gy"))
+#' plot(network)
 #' 
 #' @export 
-plotNetwork <- function(object, includeResponse=NULL, excludeResponse=NULL, includePredictor=NULL, excludePredictor=NULL, 
-                        MatrixGamma=NULL, PmaxPredictor=0.5, PmaxResponse=0.5, nodesizePredictor=5, nodesizeResponse=25, no.isolates=FALSE,
-                        lineup=1, gray.alpha=0.6, edgewith.response=5, edgewith.predictor=2, edge.weight=FALSE, label.predictor=NULL,
+plot.Network <- function(x, includeResponse=NULL, excludeResponse=NULL, includePredictor=NULL, excludePredictor=NULL, 
+                        MatrixGamma=NULL, PmaxPredictor=0.5, PmaxResponse=0.5, nodesizePredictor=2, nodesizeResponse=15, no.isolates=FALSE,
+                        lineup=1.2, gray.alpha=0.6, edgewith.response=5, edgewith.predictor=2, edge.weight=FALSE, label.predictor=NULL,
                         label.response=NULL, color.predictor=NULL,color.response=NULL, name.predictors=NULL,name.responses=NULL, 
                         vertex.frame.color=NA,layoutInCircle=FALSE, header="", ...){
   
-  object$output[-1] <- paste(object$output$outFilePath,object$output[-1],sep="")
-  
-  gamma_hat <- as.matrix( read.table(object$output$gamma) )
-  colnames(gamma_hat) <- names(read.table(object$output$Y,header=T))
-  rownames(gamma_hat) <- names(read.table(object$output$X,header=T))
+  gamma_hat <- x$gamma
   
   if(sum(colnames(gamma_hat)==paste("V",1:ncol(gamma_hat),sep="")) == ncol(gamma_hat))
     colnames(gamma_hat) <- paste("Y",1:ncol(gamma_hat),sep="")
@@ -78,7 +76,7 @@ plotNetwork <- function(object, includeResponse=NULL, excludeResponse=NULL, incl
   
   gamma_hat <- gamma_hat[!excludePredictor.idx,!excludeResponse.idx]
   
-  Gy_hat <- as.matrix( read.table(object$output$G) )
+  Gy_hat <- x$Gy
   Gy_hat <- Gy_hat[!excludeResponse.idx,!excludeResponse.idx]
   
   if(edge.weight){
@@ -196,8 +194,9 @@ plotSEMgraph <- function(ADJmatrix,GAMmatrix,nodesizeSNP=2,nodesizeMET=25,no.iso
   }
   
   plot.igraph(graphSEM,edge.arrow.size=0.5, edge.width=edge.width, vertex.frame.color=vertex.frame.color,
-       edge.color=c(rep(gray(0),2*n.edgeADJ),rep(gray(0.7, alpha=gray.alpha),2*n.edgeGAM)),layout=layoutSEM,...)
+              edge.color=c(rep(gray(0),2*n.edgeADJ),rep(gray(0.7, alpha=gray.alpha),2*n.edgeGAM)),layout=layoutSEM,...)
   
   if(!is.null(name.predictors)) text(-1,-1.3,name.predictors,cex=1.2)
   if(!is.null(name.responses)) text(0.4,-1.3,name.responses,cex=1.2)
+  
 }

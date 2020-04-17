@@ -16,20 +16,21 @@
 #' @param Y,X,X_0 vectors of indexes (with respect to the data matrix) for the outcomes, the covariates to select and the fixed covariates respectively if data is either a path to a file or a matrix;
 #' if the 'data' argument is not provided, these needs to be matrices containing the data instead.
 #' @param outFilePath path to where the output files are to be written. The default path is the currect working directory.
-#' @param nIter number of iterations for the MCMC procedure
-#' @param burnin number of iterations (or fraction of iterations) to discard at the start of the chain. Default is 0
-#' @param nChains number of parallel chains to run
+#' @param nIter number of iterations for the MCMC procedure.
+#' @param burnin number of iterations (or fraction of iterations) to discard at the start of the chain. Default is 0.
+#' @param nChains number of parallel chains to run.
 #' @param covariancePrior string indicating the prior for the covariance $C$; it has to be either "HIW" for the hyper-inverse-Wishar (which will result in a sparse covariance matrix),
 #' "IW" for the inverse-Wishart prior ( dense covariance ) or "IG" for independent inverse-Gamma on all the diagonal elements and 0 otherwise. See the details for the model specification
 #' @param gammaPrior string indicating the gamma prior to use, either "hotspot" for the Hotspot prior of Bottolo (2011), "MRF" for the Markov Random Field prior or "hierarchical" for a simpler hierarchical prior. See the details for the model specification
+#' @param betaPrior string indicating the beta prior to use, either "independent" for the independent spike-and-slab prior or "reGroup" for the random effects for \code{X_0} and independent spike-and-slab priors for other predictors
 #' @param gammaSampler string indicating the type of sampler for gamma, either "bandit" for the Thompson sampling inspired samper or "MC3" for the usual $MC^3$ sampler
 #' @param gammaInit gamma initialisation to either all-zeros ("0"), all ones ("1"), randomly ("R") or (default) MLE-informed ("MLE").
 #' @param mrfG either a matrix or a path to the file containing the G matrix for the MRF prior on gamma (if necessary)
 #' @param standardize logical flag for X variable standardization. Default is standardize=TRUE. The coefficients are returned on the standardized scale.
-#' @param standardize.response standardization for the response variables. Default is standardize.response=TRUE.
-#' @param maxThreads maximum number of threads for the parallelization. Default is 2.
+#' @param standardize.response Standardization for the response variables. Default is standardize.response=TRUE.
 #' @param hyperpar a list of named hypeparameters to use instead of the default values. Valid names are mrf_d, mrf_e, a_sigma, b_sigma, a_tau, b_tau, nu, a_eta, b_eta, a_o, b_o, a_pi, b_pi, a_w and b_w. 
-#' Their default values are a_w=2, b_w=5, a_o=p-2, b_o=0.005, a_pi=2 (hotspot) or 1 (hierarchical), b_pi=1 (hotspot) or s-1 (hierarchical), nu=s+2, a_tau=0.1, b_tau=10, a_eta=0.1, b_eta=1, a_sigma=1, b_sigma=1, mrf_d=-3 and mrf_e=0.001. See the vignette for more information.
+#' Their default values are a_w=2, b_w=5, a_omega=1, b_omega=1, a_o=2, b_o=p-2, a_pi=2, b_pi=1, nu=s+2, a_tau=0.1, b_tau=10, a_eta=0.1, b_eta=1, a_sigma=1, b_sigma=1, mrf_d=-3 and mrf_e=0.03. See the vignette for more information.
+#' @param maxThreads maximum threads used for parallelization. Default is 2.
 #' @param output_gamma allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for  gamma. See the return value below for more information.
 #' @param output_beta allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for beta. See the return value below for more information.
 #' @param output_G allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for G. See the return value below for more information.
@@ -84,12 +85,12 @@
 #' @examples
 #' data("example_eQTL", package = "BayesSUR")
 #' hyperpar <- list( a_w = 2 , b_w = 5 )
-#' 
+#' set.seed(9173)
 #' fit <- BayesSUR(Y = example_eQTL[["blockList"]][[1]], 
 #'                 X = example_eQTL[["blockList"]][[2]],
 #'                 data = example_eQTL[["data"]], outFilePath = tempdir(),
 #'                 nIter = 100, burnin = 50, nChains = 2, gammaPrior = "hotspot",
-#'                 hyperpar = hyperpar, tmpFolder = "tmp/" )
+#'                 hyperpar = hyperpar, tmpFolder = "tmp/", output_CPO=TRUE)
 #' 
 #' ## check output
 #' # show the summary information
@@ -97,21 +98,22 @@
 #' 
 #' # show the estimated beta, gamma and graph of responeses Gy
 #' \donttest{
-#' plotEstimator(fit)
+#' estimators <- getEstimator(fit, estimator=c("beta","gamma","Gy"))
+#' plot.Estimator(estimators)
 #' 
-#' plotEstimator(fit, fig.tex = TRUE)
+#' plot.Estimator(estimators, fig.tex = TRUE)
 #' system(paste(getOption("pdfviewer"), "ParamEstimator.pdf"))
 #' }
 #' 
 #' @export
 BayesSUR <- function(Y, X, X_0 = NULL, data = NULL, 
                      outFilePath = "", nIter = 10000, burnin = 5000, nChains = 2, 
-                     covariancePrior = "HIW", gammaPrior = "",
+                     covariancePrior = "HIW", gammaPrior = "", betaPrior = "independent",
                      gammaSampler = "bandit", gammaInit = "MLE", mrfG = NULL,
                      standardize = TRUE, standardize.response = TRUE, maxThreads = 2,
                      output_gamma = TRUE, output_beta = TRUE, output_G = TRUE, output_sigmaRho = TRUE,
                      output_pi = TRUE, output_tail = TRUE, output_model_size = TRUE, output_model_visit = FALSE, 
-                     output_CPO = TRUE, output_Y = TRUE, output_X = TRUE, hyperpar = list(), tmpFolder = "tmp/")
+                     output_CPO = FALSE, output_Y = TRUE, output_X = TRUE, hyperpar = list(), tmpFolder = "tmp/")
 {
   
   # Check the directory for the output files
@@ -132,7 +134,7 @@ BayesSUR <- function(Y, X, X_0 = NULL, data = NULL,
   if(!file.exists(tmpFolder))
     dir.create(tmpFolder)
   
-
+  
   ## Check the input: reasoning is that the user provides either
   # a data matrix or a data path-to-file
   #     - in this case Y, X (and X_0) need to be provided as vectors of indexes 
@@ -144,9 +146,8 @@ BayesSUR <- function(Y, X, X_0 = NULL, data = NULL,
   cl <- match.call()
   
   # we'll check in reverse order, is data NULL?
-  if ( is.null( data ) )# | m[1] )
-  {
-
+  if ( is.null( data ) ){
+    
     # Y,X (and if there X_0) need to be valid numeric matrices then
     # check Y and X have comfortable number of observations
     if( !is.numeric(Y) | is.null(dim(Y)) & !is.data.frame(Y) )
@@ -162,30 +163,30 @@ BayesSUR <- function(Y, X, X_0 = NULL, data = NULL,
       if( !is.numeric(X_0) | is.null(dim(X_0)) | nrow(X_0) != nObservations & !is.data.frame(X_0) )
         my_stop("if provided, X_0 needs to be a valid matrix or data.frame with >= 1 column and the same number of rows of Y", tmpFolder)
     }
-      
+    
     #if( !is.numeric(X_0) | is.null(dim(X_0)) | nrow(X_0) != nObservations )
     #  my_stop("if provided, X_0 needs to be a valid matrix or data.frame with >= 1 column and the same number of rows of Y")
-
+    
     # Standarize the data
     if( standardize ){
       X = scale(X)[,]
       X_0 = scale(X_0)[,]
     } 
     if( standardize.response ) Y = scale(Y)[,]
-
+    
     # Write the three down in a single data file
     write.table(cbind(Y,X,X_0),paste(sep="",tmpFolder,"data.txt"), row.names = FALSE, col.names = FALSE)
     data = paste(sep="",tmpFolder,"data.txt")
-
+    
     blockLabels = c( rep(0,ncol(Y)) , rep(1,ncol(X)) , rep(2,ncol(X_0)) )
-
+    
     # Write the data in a output file
     write.table(Y,paste(sep="",outFilePath,"data_Y.txt"), row.names = FALSE, col.names = TRUE)
     write.table(X,paste(sep="",outFilePath,"data_X.txt"), row.names = FALSE, col.names = TRUE)
     write.table(X_0,paste(sep="",outFilePath,"data_X0.txt"), row.names = FALSE, col.names = TRUE)
-
+    
   }else{ # data is not null, so the user wants to use it to input the data
-
+    
     # is the data given as matrix?
     ## If it's valid matrix, simply write it and re-assign the variable data to hold its path
     if( (is.numeric(data) | is.data.frame(data)) & !is.null(dim(data))  )
@@ -205,69 +206,69 @@ BayesSUR <- function(Y, X, X_0 = NULL, data = NULL,
       write.table(data,paste(sep="",tmpFolder,"data.txt"), row.names = FALSE, col.names = FALSE)
       data = paste(sep="",tmpFolder,"data.txt")
     }
-
+    
     # is the data given as a string?
     if( is.character(data) & length(data) == 1 )
     {    
       if( substr(data,1,1) == "~" )
         data = path.expand(data)
-
+      
       # now try and read from given data file
       if( !file.exists( data ) )
         my_stop("Input file doesn't exists!",tmpFolder)
     }
-
+    
     ## at this point data contains the path to a file that exists
     # try and read one line to check dimensions
     dataHeader = read.table(data,header = FALSE,nrows = 1)
     nVariables = ncol(dataHeader)
-
+    
     ## Y, X (and X_0) should be some fixed variables that needs to be included in the model
     if ( is.null(X_0) )
       X_0 = c()
-
+    
     # be sure they can be converted to numeric
     Y = as.numeric(Y)
     X = as.numeric(X)
     X_0 = as.numeric(X_0)
-
+    
     # be sure that they are vectors
     if ( !( is.vector(Y,"numeric") & is.vector(X,"numeric") & is.vector(X_0,"numeric") ) )
       my_stop("When the `data` argument is set, Y,X and X_0 need to be corresponding index vectors", tmpFolder)
-
+    
     # check thay do not overlap
     if ( length( c( intersect(Y,X) , intersect(Y,X_0) , intersect(X_0,X) ) ) != 0 )
       my_stop("Y,X and X_0 need to be distinct index vectors", tmpFolder)
-
+    
     # check if dimensions correspond -- higher dimensions gets an error
     if( length( c(Y,X,X_0) ) > nVariables )
       my_stop("When the `data` argument is set, Y,X and X_0 need to be corresponding index vectors", tmpFolder)
     # equal dimensions are ok, but lower dimensions means some columns of the data will be disregarded ( set to -1  )
-
+    
     # We can now init the blockList
     blockLabels = rep(NA,nVariables)
     blockLabels[Y] = 0
     blockLabels[X] = 1
     if ( length ( X_0 ) > 0 ) 
       blockLabels[X_0] = 2
-
+    
     blockLabels[ is.na ( blockLabels ) ] = -1
-
+    
   }
-
+  
   ## Then init the structure graph
   # Consider that the indexes are written so that Y is 0 , X is 1 and (if there) X_0 is 2
   if ( length ( X_0 ) > 0 ){
     structureGraph = structureGraph = matrix(c(0,0,0,1,0,0,2,0,0),3,3,byrow=TRUE)
   }else structureGraph = structureGraph = matrix(c(0,0,1,0),2,2,byrow=TRUE)
-
+  
   ## Finally write blockLabels and structureGraph to a file
   write.table(blockLabels,paste(sep="",tmpFolder,"blockLabels.txt"), row.names = FALSE, col.names = FALSE)
   blockList = paste(sep="",tmpFolder,"blockLabels.txt")
   write.table(structureGraph, paste(sep="",tmpFolder,"structureGraph.txt"), row.names = FALSE, col.names = FALSE)
   structureGraph = paste(sep="",tmpFolder,"structureGraph.txt")
-
-
+  
+  
   # cleanup file PATHS
   dataLength = nchar(data)
   if( dataLength == 0 )
@@ -275,8 +276,8 @@ BayesSUR <- function(Y, X, X_0 = NULL, data = NULL,
   
   # magicly strip '/' from the start and '.txt' from the end of the data file name
   dataString = head( strsplit( tail( strsplit(data,split = c("/"))[[1]] , 1 ) , ".txt" )[[1]] , 1 ) 
-
-
+  
+  
   # check how burnin was given
   if ( burnin < 0 ){
     my_stop("Burnin must be positive or 0",tmpFolder)
@@ -285,10 +286,10 @@ BayesSUR <- function(Y, X, X_0 = NULL, data = NULL,
   }else{ if ( burnin < 1 ){ # given as a fraction
     burnin = ceiling(nIter * burnin) # the zero case is taken into account here as well
   }}} # else assume is given as an absolute number
-
+  
   ###############################
   # prepare the print of hyperparameters corresponding the specified model
-  hyperpar.all <- list(a_w=2, b_w=5, a_o=sum(blockLabels==1)-2, b_o=0.005, a_pi=NA, b_pi=NA, nu=sum(blockLabels==0)+2, a_tau=0.1, b_tau=10, a_eta=0.1, b_eta=1, a_sigma=1, b_sigma=1, mrf_d=-3, mrf_e=0.001)
+  hyperpar.all <- list(a_w=2, b_w=5, a_o=2, b_o=sum(blockLabels==1)-2, a_pi=NA, b_pi=NA, nu=sum(blockLabels==0)+2, a_tau=0.1, b_tau=10, a_eta=0.1, b_eta=1, a_sigma=1, b_sigma=1, mrf_d=-3, mrf_e=0.03)
   if(toupper(gammaPrior) %in% c("HOTSPOT", "HOTSPOTS", "HS")){
     hyperpar.all$a_pi <- 2
     hyperpar.all$b_pi <- 1
@@ -301,8 +302,8 @@ BayesSUR <- function(Y, X, X_0 = NULL, data = NULL,
       hyperpar.all <- hyperpar.all[-c(12:15)]
   }
   if( toupper(gammaPrior) %in% c("HIERARCHICAL", "H")){
-    #hyperpar.all$a_pi <- 1
-    #hyperpar.all$b_pi <- sum(blockLabels==0) - 1
+    hyperpar.all$a_pi <- 1
+    hyperpar.all$b_pi <- sum(blockLabels==0) - 1
     
     if(toupper(covariancePrior) %in% c("INDEPENDENT", "INDEP", "IG"))
       hyperpar.all <- hyperpar.all[-c(3:6,7:11,14:15)]
@@ -320,11 +321,17 @@ BayesSUR <- function(Y, X, X_0 = NULL, data = NULL,
     if(toupper(covariancePrior) %in% c("SPARSE", "HIW"))
       hyperpar.all <- hyperpar.all[-c(3:6,12:13)]
   }
+  if(toupper(betaPrior) == "REGROUP"){
+    hyperpar.all$a_w0 <- hyperpar.all$a_w
+    hyperpar.all$b_w0 <- hyperpar.all$b_w
+  }
   
   if(length(hyperpar)>0)
     for( i in 1:length(hyperpar)){
       if(names(hyperpar)[[i]] %in% names(hyperpar.all))
         hyperpar.all[[which(names(hyperpar.all)==names(hyperpar)[[i]])]] <- hyperpar[[i]]
+      if(!is.null(hyperpar$a_omega)) hyperpar.all$a_pi <- hyperpar$a_omega
+      if(!is.null(hyperpar$b_omega)) hyperpar.all$b_pi <- hyperpar$b_omega
     }
   
   # method to use
@@ -339,21 +346,21 @@ BayesSUR <- function(Y, X, X_0 = NULL, data = NULL,
   
   # mrfG and gammaPrior
   if( gammaPrior == "" )
-	{
-		if ( is.null(mrfG) )
-		{
-			cat( "Using default prior for Gamma - hotspot prior\n")
-			#mrfG=""
-			gammaPrior = "hotspot"
-		}
-		else
-		{
-			cat( "No value for gammaPrior was specified, but mrfG was given - choosing MRF prior\n")
-			gammaPrior = "MRF"
-		}
+  {
+    if ( is.null(mrfG) )
+    {
+      cat( "Using default prior for Gamma - hotspot prior\n")
+      #mrfG=""
+      gammaPrior = "hotspot"
+    }
+    else
+    {
+      cat( "No value for gammaPrior was specified, but mrfG was given - choosing MRF prior\n")
+      gammaPrior = "MRF"
+    }
     
-	}else{
-
+  }else{
+    
     if ( toupper(gammaPrior) %in% c("HOTSPOT", "HOTSPOTS", "HS") )
       gammaPrior = "hotspot"
     else if ( toupper(gammaPrior) %in% c("MRF", "MARKOV RANDOM FIELD") ) 
@@ -363,20 +370,22 @@ BayesSUR <- function(Y, X, X_0 = NULL, data = NULL,
     else
       my_stop("Unknown gammaPrior argument: only hotspot, MRF or hierarchical are available",tmpFolder)
   }
-
+  
   # if mrfG is not a string
   if( !(is.character(mrfG) & length(mrfG) == 1) )
   {
     # if it's a matrix
     if( (is.numeric(mrfG)  | is.data.frame(mrfG)) & !is.null(dim(mrfG))  )
     {
-      write.table(mrfG,paste(sep="",tmpFolder,"mrfG.txt"), row.names = FALSE, col.names = FALSE)
-      mrfG = paste(sep="",tmpFolder,"mrfG.txt")
+      if(ncol(mrfG) == 2)
+        mrfG = cbind( mrfG, rep(1,nrow(mrfG)) )
+      write.table(mrfG,paste(sep="",outFilePath,"mrfG.txt"), row.names = FALSE, col.names = FALSE)
+      mrfG = paste(sep="",outFilePath,"mrfG.txt")
     }else if( is.null( mrfG )){
       # save a meaningless mrfG.txt file to pass the parameter to C++ 
-      mrfG = matrix(c(0,0),ncol=2)
-      write.table(mrfG, paste(sep="",tmpFolder,"mrfG.txt"), row.names = FALSE, col.names = FALSE)
-      mrfG = paste(sep="",tmpFolder,"mrfG.txt")
+      mrfG = matrix(c(0,0,0),ncol=3)
+      write.table(mrfG, paste(sep="",outFilePath,"mrfG.txt"), row.names = FALSE, col.names = FALSE)
+      mrfG = paste(sep="",outFilePath,"mrfG.txt")
     }else
       my_stop("Unknown mrfG argument: check the help function for possibile values",tmpFolder)
   }
@@ -403,39 +412,45 @@ BayesSUR <- function(Y, X, X_0 = NULL, data = NULL,
   ret$input["gammaInit"] = gammaInit
   ret$input["mrfG"] = mrfG
   
+  if( toupper(gammaPrior) %in% c("HIERARCHICAL", "H")){
+    names(hyperpar.all)[names(hyperpar.all)=="a_pi"] <- "a_omega"
+    names(hyperpar.all)[names(hyperpar.all)=="b_pi"] <- "b_omega"
+  }
   ret$input$hyperParameters = hyperpar.all
-
+  
   methodString = 
     switch( covariancePrior,
-      "HIW" = "SSUR" ,
-      "IW"  = "dSUR" ,
-      "IG"  = "HRR" )
-
+            "HIW" = "SSUR" ,
+            "IW"  = "dSUR" ,
+            "IG"  = "HRR" )
+  
   ret$call = cl
   
   # Prepare path to outputs
   ret$output["outFilePath"] = outFilePath
   
   ret$output["logP"] = paste(sep="", dataString , "_",  methodString , "_logP_out.txt")
-
+  
   if ( output_gamma )
     ret$output["gamma"] = paste(sep="", dataString , "_",  methodString , "_gamma_out.txt")
   
   if( gammaPrior %in% c("hierarchical","hotspot") & output_pi )
     ret$output["pi"] = paste(sep="", dataString , "_",  methodString , "_pi_out.txt")
-
+  
   if( gammaPrior == "hotspot" & output_tail )
     ret$output["tail"] = paste(sep="", dataString , "_",  methodString , "_hotspot_tail_p_out.txt")
   
   if ( output_beta )
     ret$output["beta"] = paste(sep="", dataString , "_",  methodString , "_beta_out.txt")
   
-  if ( covariancePrior == "HIW" & output_G )
+  if ( covariancePrior == "HIW" & output_G ){
     ret$output["G"] = paste(sep="", dataString , "_",  methodString , "_G_out.txt")
-    
+    ret$output["Gvisit"] = paste(sep="", dataString , "_",  methodString , "_G_visit.txt")
+  }
+  
   if ( covariancePrior %in% c("HIW","IW") & output_sigmaRho )
     ret$output["sigmaRho"] = paste(sep="", dataString , "_",  methodString , "_sigmaRho_out.txt")
-
+  
   if ( output_model_size )
     ret$output["model_size"] = paste(sep="", dataString , "_",  methodString , "_model_size_out.txt")
   
@@ -448,18 +463,23 @@ BayesSUR <- function(Y, X, X_0 = NULL, data = NULL,
   if ( output_Y )
     ret$output["Y"] = paste(sep="", "data_Y.txt")
   
-  if ( output_X )
+  if ( output_X ){
     ret$output["X"] = paste(sep="", "data_X.txt")
-
-  betaPrior="independent"
+    if( length(X_0)>0 )
+      ret$output["X0"] = paste(sep="", "data_X0.txt")
+  }
+  
+  #seed = as.integer(.GlobalEnv$.Random.seed[length(.GlobalEnv$.Random.seed)])
+  #set.seed(seed)
+  #betaPrior="independent"
   ret$status = BayesSUR_internal(data, mrfG, blockList, structureGraph, hyperParFile, outFilePath, 
-            nIter, burnin, nChains, 
-            covariancePrior, gammaPrior, gammaSampler, gammaInit, betaPrior, maxThreads,
-            output_gamma, output_beta, output_G, output_sigmaRho, output_pi, output_tail, output_model_size, output_CPO, output_model_visit)
-
+                                 nIter, burnin, nChains, 
+                                 covariancePrior, gammaPrior, gammaSampler, gammaInit, betaPrior, maxThreads,
+                                 output_gamma, output_beta, output_G, output_sigmaRho, output_pi, output_tail, output_model_size, output_CPO, output_model_visit)
+  
   if(outFilePath != tmpFolder)
     unlink(tmpFolder,recursive = TRUE)
-   
+  
   class(print) <- c(class(print), "BayesSUR")
   class(summary) <- c(class(summary), "BayesSUR")
   class(plot) <- c(class(plot), "BayesSUR")
