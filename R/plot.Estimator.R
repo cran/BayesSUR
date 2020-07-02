@@ -4,8 +4,8 @@
 #' @importFrom graphics axis box text mtext par image
 #' @importFrom grDevices colorRampPalette dev.off grey
 #' @importFrom tikzDevice tikz
-#' @name plot.Estimator
-#' @param x an object of class \code{getEstimator} with \code{estimator=c("beta","gamma","Gy")}
+#' @name plot.estimator
+#' @param x an object of class \code{get.estimator} with \code{estimator=c("beta","gamma","Gy")}
 #' @param estimator print the heatmap of estimators. The value "beta" is for the estimated coefficients matrix, "gamma" for the latent indicator matrix and "Gy" for the graph of responses
 #' @param colorScale.gamma value palette for gamma
 #' @param colorScale.beta a vector of three colors for diverging color schemes
@@ -40,7 +40,7 @@
 #' ## check output
 #' # Plot the estimators from the fitted object
 #' \dontrun{
-#' estimators <- getEstimator(fit, estimator = c("beta","gamma","Gy"))
+#' estimators <- get.estimator(fit, estimator = c("beta","gamma","Gy"))
 #' plot(estimators)
 #' 
 #' #Set up temporary work directory for saving a pdf figure
@@ -55,7 +55,7 @@
 #' }
 #' 
 #' @export
-plot.Estimator <- function(x, estimator=NULL, colorScale.gamma=grey((100:0)/100), colorScale.beta=c("blue","white","red"), legend.cex.axis=1, name.responses=NA, 
+plot.estimator <- function(x, estimator=NULL, colorScale.gamma=grey((100:0)/100), colorScale.beta=c("blue","white","red"), legend.cex.axis=1, name.responses=NA, 
                           name.predictors=NA, xlab="", ylab="", fig.tex=FALSE, output="ParamEstimator", header="", header.cex=2, tick=FALSE, mgp=c(2.5,1,0),
                           title.beta=paste("Estimator","$\\hat{\\bm{B}}$"), title.gamma=paste("Estimator","$\\hat{\\mathbf{\\Gamma}}$"),
                           title.Gy=paste("Estimator","$\\hat{\\mathcal{G}}$"), cex.main=1.5,...){

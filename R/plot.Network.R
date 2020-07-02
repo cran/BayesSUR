@@ -4,8 +4,8 @@
 #' @importFrom graphics text 
 #' @importFrom grDevices gray 
 #' @importFrom igraph V E gsize layout_in_circle plot.igraph degree layout.fruchterman.reingold delete.vertices graph.adjacency
-#' @name plot.Network
-#' @param x an object of class \code{getEstimator} with \code{estimator=c("gamma","Gy")}
+#' @name plot.network
+#' @param x an object of class \code{get.estimator} with \code{estimator=c("gamma","Gy")}
 #' @param includeResponse A vector of the response names which are shown in the network
 #' @param excludeResponse A vector of the response names which are not shown in the network
 #' @param includePredictor A vector of the predictor names which are shown in the network
@@ -45,11 +45,11 @@
 #' 
 #' ## check output
 #' # show the Network representation of the associations between responses and features
-#' network <- getEstimator(fit, estimator = c("gamma","Gy"))
+#' network <- get.estimator(fit, estimator = c("gamma","Gy"))
 #' plot(network)
 #' 
 #' @export 
-plot.Network <- function(x, includeResponse=NULL, excludeResponse=NULL, includePredictor=NULL, excludePredictor=NULL, 
+plot.network <- function(x, includeResponse=NULL, excludeResponse=NULL, includePredictor=NULL, excludePredictor=NULL, 
                         MatrixGamma=NULL, PmaxPredictor=0.5, PmaxResponse=0.5, nodesizePredictor=2, nodesizeResponse=15, no.isolates=FALSE,
                         lineup=1.2, gray.alpha=0.6, edgewith.response=5, edgewith.predictor=2, edge.weight=FALSE, label.predictor=NULL,
                         label.response=NULL, color.predictor=NULL,color.response=NULL, name.predictors=NULL,name.responses=NULL, 

@@ -1,7 +1,7 @@
 #' @title extract the posterior mean of the parameters
 #' @description
 #' Extract the posterior mean of the parameters of a "BayesSUR" class object.
-#' @name getEstimator
+#' @name get.estimator
 #' @param object an object of class "BayesSUR"
 #' @param estimator the name of one estimator. Default is the latent indicator estimator "\code{gamma}". Other options "\code{beta}", "\code{Gy}", "\code{CPO}" and "\code{logP}" 
 #' correspond the posterior means of coefficient matrix, response graph and conditional predictive ordinate (CPO) respectively 
@@ -23,10 +23,10 @@
 #' 
 #' ## check output
 #' # extract the posterior mean of the coefficients matrix
-#' beta_hat <- getEstimator(fit, estimator="beta")
+#' beta_hat <- get.estimator(fit, estimator="beta")
 #' 
 #' @export
-getEstimator <- function(object, estimator="gamma", Pmax=0){
+get.estimator <- function(object, estimator="gamma", Pmax=0){
   
   object$output[-1] <- paste(object$output$outFilePath,object$output[-1],sep="")
   if( sum(estimator %in% c("gamma","beta","Gy","CPO","logP"))<1 )
@@ -64,8 +64,8 @@ getEstimator <- function(object, estimator="gamma", Pmax=0){
       
       ## Create the return object
       ret <-  Est
-      class(ret) <- "ResponseGraph"
-      class(plot) <- c(class(plot), "ResponseGraph")
+      class(ret) <- "response.graph"
+      class(plot) <- c(class(plot), "response.graph")
       return(ret)
     } 
     
@@ -120,8 +120,8 @@ getEstimator <- function(object, estimator="gamma", Pmax=0){
     
     ## Create the return object
     ret <- list(gamma=gamma, Gy=Gy, covariancePrior=covariancePrior)
-    class(ret) <- "Network"
-    class(plot) <- c(class(plot), "Network")
+    class(ret) <- "network"
+    class(plot) <- c(class(plot), "network")
     return(ret)
   } 
   
@@ -147,8 +147,8 @@ getEstimator <- function(object, estimator="gamma", Pmax=0){
     }
     
     ## Create the return object
-    class(ret) <- "Estimator"
-    class(plot) <- c(class(plot), "Estimator")
+    class(ret) <- "estimator"
+    class(plot) <- c(class(plot), "estimator")
     return(ret)
   } 
   
