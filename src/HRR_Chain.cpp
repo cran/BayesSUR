@@ -17,7 +17,7 @@ HRR_Chain::HRR_Chain( std::shared_ptr<arma::mat> data_, std::shared_ptr<arma::ma
                      std::shared_ptr<arma::uvec> outcomesIdx_, std::shared_ptr<arma::uvec> VSPredictorsIdx_,
                      std::shared_ptr<arma::uvec> fixedPredictorsIdx_, std::shared_ptr<arma::umat> missingDataArrayIdx_, std::shared_ptr<arma::uvec> completeCases_,
                      Gamma_Sampler_Type gamma_sampler_type_ , Gamma_Type gamma_type_ ,
-                     Beta_Type beta_type_ , Covariance_Type covariance_type_ , bool output_CPO ,
+                     Beta_Type beta_type_ , Covariance_Type covariance_type_ , bool output_CPO , int maxThreads ,
                      double externalTemperature ):
 data(data_), mrfG(mrfG_), outcomesIdx(outcomesIdx_), VSPredictorsIdx(VSPredictorsIdx_), fixedPredictorsIdx(fixedPredictorsIdx_),
 missingDataArrayIdx(missingDataArrayIdx_), completeCases(completeCases_),
@@ -83,11 +83,11 @@ covariance_type(covariance_type_),gamma_type(gamma_type_),beta_type(beta_type_),
 
 HRR_Chain::HRR_Chain( Utils::SUR_Data& surData,
                      Gamma_Sampler_Type gamma_sampler_type_ , Gamma_Type gamma_type_ ,
-                     Beta_Type beta_type_ , Covariance_Type covariance_type_ , bool output_CPO ,
+                     Beta_Type beta_type_ , Covariance_Type covariance_type_ , bool output_CPO , int maxThreads ,
                      double externalTemperature ):
 HRR_Chain(surData.data,surData.mrfG,surData.nObservations,surData.nOutcomes,surData.nVSPredictors,surData.nFixedPredictors,
 surData.outcomesIdx,surData.VSPredictorsIdx,surData.fixedPredictorsIdx,surData.missingDataArrayIdx,surData.completeCases,
-          gamma_sampler_type_,gamma_type_,beta_type_,covariance_type_,output_CPO,externalTemperature){ }
+          gamma_sampler_type_,gamma_type_,beta_type_,covariance_type_,output_CPO,maxThreads,externalTemperature){ }
 
 HRR_Chain::HRR_Chain( Utils::SUR_Data& surData, double externalTemperature ):
 HRR_Chain(surData.data,surData.mrfG,surData.nObservations,surData.nOutcomes,surData.nVSPredictors,surData.nFixedPredictors,
@@ -656,7 +656,7 @@ void HRR_Chain::piInit()
         case Gamma_Type::hierarchical :
             for(unsigned i=0; i<nOutcomes; i++)
             {
-                init(i) = Distributions::randBeta(1., (double)nOutcomes-1.);
+                init(i) = randBeta(1., (double)nOutcomes-1.);
             }
             piInit( init , 1. , (double)nOutcomes-1. );
             break;
@@ -1028,10 +1028,11 @@ double HRR_Chain::logLikelihood( )
     {
         yMean.col(k) = arma::mean(yMean.col(k)) * arma::ones(nObservations);
     }
-         
-#ifdef _OPENMP
-#pragma omp parallel for default(shared) reduction(+:logP)
-#endif
+
+    #ifdef _OPENMP
+    #pragma omp parallel for default(shared) reduction(+:logP)
+    #endif
+    
     for( unsigned int k=0; k<nOutcomes; ++k)
     {
         arma::uvec VS_IN_k = {}; // be sure it's empty by default
@@ -1145,9 +1146,10 @@ double HRR_Chain::logLikelihood( const arma::umat&  externalGammaMask )
         yMean.col(k) = arma::mean(yMean.col(k)) * arma::ones(nObservations);
     }
     
-#ifdef _OPENMP
-#pragma omp parallel for default(shared) reduction(+:logP)
-#endif
+    #ifdef _OPENMP
+    #pragma omp parallel for default(shared) reduction(+:logP)
+    #endif
+    
     for( unsigned int k=0; k<nOutcomes; ++k)
     {
         arma::uvec VS_IN_k = {};
@@ -1245,10 +1247,10 @@ double HRR_Chain::logLikelihood( arma::umat& externalGammaMask , const arma::uma
         yMean.col(k) = arma::mean(yMean.col(k)) * arma::ones(nObservations);
     }
     
+    #ifdef _OPENMP
+    #pragma omp parallel for default(shared) reduction(+:logP)
+    #endif
     
-#ifdef _OPENMP
-#pragma omp parallel for default(shared) reduction(+:logP)
-#endif
     for( unsigned int k=0; k<nOutcomes; ++k)
     {
         arma::uvec VS_IN_k = {};
@@ -1344,10 +1346,11 @@ double HRR_Chain::logLikelihood( const arma::umat& externalGammaMask , const dou
     {
         yMean.col(k) = arma::mean(yMean.col(k)) * arma::ones(nObservations);
     }
+   
+    #ifdef _OPENMP
+    #pragma omp parallel for default(shared) reduction(+:logP)
+    #endif
     
-#ifdef _OPENMP
-#pragma omp parallel for default(shared) reduction(+:logP)
-#endif
     for( unsigned int k=0; k<nOutcomes; ++k)
     {
         arma::uvec VS_IN_k = {};
@@ -1441,12 +1444,12 @@ double HRR_Chain::gammaBanditProposal( arma::umat& mutantGamma , arma::uvec& upd
     double logProposalRatio;
     
     // decide on one outcome
-    outcomeUpdateIdx = Distributions::randIntUniform(0,nOutcomes-1);
+    outcomeUpdateIdx = randIntUniform(0,nOutcomes-1);
     
     // Sample Zs (only for relevant outocome)
     for(unsigned int i=0; i<nVSPredictors; ++i)
     {
-        banditZeta(i) = Distributions::randBeta(banditAlpha(i,outcomeUpdateIdx),banditAlpha(i,outcomeUpdateIdx));
+        banditZeta(i) = randBeta(banditAlpha(i,outcomeUpdateIdx),banditAlpha(i,outcomeUpdateIdx));
     }
     
     // Create mismatch (only for relevant outcome)
@@ -1461,7 +1464,7 @@ double HRR_Chain::gammaBanditProposal( arma::umat& mutantGamma , arma::uvec& upd
     
     normalised_mismatch = mismatch / arma::as_scalar(arma::sum(mismatch));
     
-    if( Distributions::randU01() < 0.5 )   // one deterministic update
+    if( randU01() < 0.5 )   // one deterministic update
     {
         
         // Decide which to update
@@ -1498,7 +1501,7 @@ double HRR_Chain::gammaBanditProposal( arma::umat& mutantGamma , arma::uvec& upd
         // Update
         for(unsigned int i=0; i<n_updates_bandit; ++i)
         {
-            mutantGamma(updateIdx(i),outcomeUpdateIdx) = Distributions::randBernoulli(banditZeta(updateIdx(i))); // random update
+            mutantGamma(updateIdx(i),outcomeUpdateIdx) = randBernoulli(banditZeta(updateIdx(i))); // random update
             
             normalised_mismatch_backwards(updateIdx(i)) = 1.- normalised_mismatch_backwards(updateIdx(i));
             
@@ -1523,13 +1526,13 @@ double HRR_Chain::gammaMC3Proposal( arma::umat& mutantGamma , arma::uvec& update
     updateIdx = arma::uvec(n_updates_MC3);
     
     // decide on one outcome
-    outcomeUpdateIdx = Distributions::randIntUniform(0,nOutcomes-1);
+    outcomeUpdateIdx = randIntUniform(0,nOutcomes-1);
     
     for( unsigned int i=0; i<n_updates_MC3; ++i)
-        updateIdx(i) = Distributions::randIntUniform(0,nVSPredictors-1);    // note that I might be updating multiple times the same coeff
+        updateIdx(i) = randIntUniform(0,nVSPredictors-1);    // note that I might be updating multiple times the same coeff
     
     for( auto i : updateIdx)
-        mutantGamma(i,outcomeUpdateIdx) = ( Distributions::randU01() < 0.5)? gamma(i,outcomeUpdateIdx) : 1-gamma(i,outcomeUpdateIdx); // could simply be ( 0.5 ? 1 : 0) ;
+        mutantGamma(i,outcomeUpdateIdx) = ( randU01() < 0.5)? gamma(i,outcomeUpdateIdx) : 1-gamma(i,outcomeUpdateIdx); // could simply be ( 0.5 ? 1 : 0) ;
     
     return 0. ; // pass this to the outside, it's the (symmetric) logProposalRatio
 }
@@ -1544,7 +1547,7 @@ double HRR_Chain::gammaMC3Proposal( arma::umat& mutantGamma , arma::uvec& update
 void HRR_Chain::stepOneO()
 {
     
-    unsigned int k = Distributions::randIntUniform(0,nOutcomes-1);
+    unsigned int k = randIntUniform(0,nOutcomes-1);
     arma::vec proposedO = o;
     
     double proposedOPrior, proposedGammaPrior, logAccProb;
@@ -1561,7 +1564,7 @@ void HRR_Chain::stepOneO()
         Distributions::logPDFTruncNorm( std::log( proposedO(k) ) , std::log( o(k) ) , var_o_proposal , -std::numeric_limits<double>::infinity() , -std::log( o(k) ) );
         logAccProb += (proposedOPrior + proposedGammaPrior) - (logP_o + logP_gamma);
         
-        if( Distributions::randLogU01() < logAccProb )
+        if( randLogU01() < logAccProb )
         {
             o(k) = proposedO(k);
             logP_o = proposedOPrior;
@@ -1594,7 +1597,7 @@ void HRR_Chain::stepO()
             Distributions::logPDFTruncNorm( std::log( proposedO(k) ) , std::log( o(k) ) , var_o_proposal , -std::numeric_limits<double>::infinity() , -std::log( o(k) ) );
             logAccProb += (proposedOPrior + proposedGammaPrior) - (logP_o + logP_gamma);
             
-            if( Distributions::randLogU01() < logAccProb )
+            if( randLogU01() < logAccProb )
             {
                 o(k) = proposedO(k);
                 logP_o = proposedOPrior;
@@ -1612,7 +1615,7 @@ void HRR_Chain::stepO()
 // MH update (log-normal) -- update one value at each iteration TODO worth doing more?
 void HRR_Chain::stepOnePi()
 {
-    unsigned int j = Distributions::randIntUniform(0,nVSPredictors-1);
+    unsigned int j = randIntUniform(0,nVSPredictors-1);
     
     switch ( gamma_type )
     {
@@ -1621,7 +1624,7 @@ void HRR_Chain::stepOnePi()
             arma::vec proposedPi = pi;
             double proposedPiPrior, proposedGammaPrior, logAccProb;
             
-            proposedPi(j) = std::exp( std::log( pi(j) ) + Distributions::randNormal(0.0, var_pi_proposal) );
+            proposedPi(j) = std::exp( std::log( pi(j) ) + randNormal(0.0, var_pi_proposal) );
             
             if( arma::all( ( o * proposedPi(j) ) <= 1 ) )
             {
@@ -1631,7 +1634,7 @@ void HRR_Chain::stepOnePi()
                 // A/R
                 logAccProb = (proposedPiPrior + proposedGammaPrior) - (logP_pi + logP_gamma);
                 
-                if( Distributions::randLogU01() < logAccProb )
+                if( randLogU01() < logAccProb )
                 {
                     pi(j) = proposedPi(j);
                     logP_pi = proposedPiPrior;
@@ -1646,7 +1649,7 @@ void HRR_Chain::stepOnePi()
         case Gamma_Type::hierarchical : // in this case it's conjugate
         {
             unsigned int k = arma::sum( gamma.row(j) );
-            pi(j) = Distributions::randBeta( a_pi + k , b_pi + nOutcomes - k );
+            pi(j) = randBeta( a_pi + k , b_pi + nOutcomes - k );
             break;
         }
             
@@ -1666,7 +1669,7 @@ void HRR_Chain::stepPi()
             double proposedPiPrior, proposedGammaPrior, logAccProb;
             for( unsigned int j=0; j < nVSPredictors ; ++j )
             {
-                proposedPi(j) = std::exp( std::log( pi(j) ) + Distributions::randNormal(0.0, var_pi_proposal) );
+                proposedPi(j) = std::exp( std::log( pi(j) ) + randNormal(0.0, var_pi_proposal) );
                 
                 if( arma::all( ( o * proposedPi(j) ) <= 1 ) )
                 {
@@ -1676,7 +1679,7 @@ void HRR_Chain::stepPi()
                     // A/R
                     logAccProb = (proposedPiPrior + proposedGammaPrior) - (logP_pi + logP_gamma);
                     
-                    if( Distributions::randLogU01() < logAccProb )
+                    if( randLogU01() < logAccProb )
                     {
                         pi(j) = proposedPi(j);
                         logP_pi = proposedPiPrior;
@@ -1696,7 +1699,7 @@ void HRR_Chain::stepPi()
             for( unsigned int j=0; j < nVSPredictors ; ++j )
             {
                 unsigned int k = arma::sum( gamma.row(j) );
-                pi(j) = Distributions::randBeta( a_pi + k , b_pi + nOutcomes - k );
+                pi(j) = randBeta( a_pi + k , b_pi + nOutcomes - k );
             }
             break;
         }
@@ -1709,14 +1712,14 @@ void HRR_Chain::stepPi()
 
 void HRR_Chain::stepW()
 {
-    double proposedW = std::exp( std::log(w) + Distributions::randNormal(0.0, var_w_proposal) );
+    double proposedW = std::exp( std::log(w) + randNormal(0.0, var_w_proposal) );
     
     double proposedWPrior = logPW( proposedW );
     double proposedLikelihood = logLikelihood( gammaMask , proposedW , proposedW , a_sigma , b_sigma );
     
     double logAccProb = (proposedWPrior + proposedLikelihood) - (logP_w + log_likelihood);
     
-    if( Distributions::randLogU01() < logAccProb )
+    if( randLogU01() < logAccProb )
     {
         w = proposedW;
         logP_w = proposedWPrior;
@@ -1728,8 +1731,8 @@ void HRR_Chain::stepW()
 
 void HRR_Chain::stepW0()
 {
-  double proposedW = std::exp( std::log(w) + Distributions::randNormal(0.0, var_w_proposal) );
-  double proposedW0 = std::exp( std::log(w0) + Distributions::randNormal(0.0, var_w0_proposal) );
+  double proposedW = std::exp( std::log(w) + randNormal(0.0, var_w_proposal) );
+  double proposedW0 = std::exp( std::log(w0) + randNormal(0.0, var_w0_proposal) );
 
   double proposedWPrior = logPW( proposedW );
   double proposedW0Prior = logPW0( proposedW0 );
@@ -1737,7 +1740,7 @@ void HRR_Chain::stepW0()
 
   double logAccProb = (proposedWPrior + proposedW0Prior + proposedLikelihood) - (logP_w + logP_w0 + log_likelihood);
 
-  if( Distributions::randLogU01() < logAccProb )
+  if( randLogU01() < logAccProb )
     {
       w = proposedW;
       w0 = proposedW0;
@@ -1785,7 +1788,7 @@ void HRR_Chain::stepGamma()
     ( proposedGammaPrior + proposedLikelihood ) -
     ( logP_gamma + log_likelihood );
     
-    if( Distributions::randLogU01() < logAccProb )
+    if( randLogU01() < logAccProb )
     {
         gamma = proposedGamma;
         gammaMask = proposedGammaMask;
@@ -1833,6 +1836,9 @@ void HRR_Chain::step()
 {
     updateGammaMask();
     
+    // update the logP_gamma
+    logPGamma();
+    
     // Update HyperParameters
     stepW();
     
@@ -1858,8 +1864,7 @@ void HRR_Chain::step()
             throw Bad_Gamma_Type ( gamma_type );
     }
     
-    // update the logP_gamma and log_likelihood
-    logPGamma();
+    // update the log_likelihood
     logLikelihood();
     
     // update gamma
@@ -2011,7 +2016,7 @@ int HRR_Chain::exchangeGamma_step( std::shared_ptr<HRR_Chain>& that )
     double logPExchange = ( logLik_1 + logLik_2 ) -
     ( this->getLogLikelihood() + that->getLogLikelihood() );
     
-    if( Distributions::randLogU01() < logPExchange )
+    if( randLogU01() < logPExchange )
     {
         // parameters and priors
         this->swapGamma( that );
@@ -2055,8 +2060,8 @@ int HRR_Chain::adapt_crossOver_step( std::shared_ptr<HRR_Chain>& that )
                 gammaXO[0](j,k) = this->getGamma()(j,k);
                 gammaXO[1](j,k) = this->getGamma()(j,k);
                 
-                gammaXO[0](j,k) = ( Distributions::randU01() < pXO_0 )? 1-gammaXO[0](j,k) : gammaXO[0](j,k);
-                gammaXO[1](j,k) = ( Distributions::randU01() < pXO_0 )? 1-gammaXO[1](j,k) : gammaXO[1](j,k);
+                gammaXO[0](j,k) = ( randU01() < pXO_0 )? 1-gammaXO[0](j,k) : gammaXO[0](j,k);
+                gammaXO[1](j,k) = ( randU01() < pXO_0 )? 1-gammaXO[1](j,k) : gammaXO[1](j,k);
                 
                 if( gammaXO[0](j,k) == gammaXO[1](j,k) )
                     ++n11;
@@ -2068,8 +2073,8 @@ int HRR_Chain::adapt_crossOver_step( std::shared_ptr<HRR_Chain>& that )
                 gammaXO[0](j,k) = this->getGamma()(j,k);
                 gammaXO[1](j,k) = that->getGamma()(j,k);
                 
-                gammaXO[0](j,k) = ( Distributions::randU01() < pXO_1 )? 1-gammaXO[0](j,k) : gammaXO[0](j,k);
-                gammaXO[1](j,k) = ( Distributions::randU01() < pXO_2 )? 1-gammaXO[1](j,k) : gammaXO[1](j,k);
+                gammaXO[0](j,k) = ( randU01() < pXO_1 )? 1-gammaXO[0](j,k) : gammaXO[0](j,k);
+                gammaXO[1](j,k) = ( randU01() < pXO_2 )? 1-gammaXO[1](j,k) : gammaXO[1](j,k);
                 
                 if( gammaXO[0](j,k) == gammaXO[1](j,k) )
                     ++n21;
@@ -2099,7 +2104,7 @@ int HRR_Chain::adapt_crossOver_step( std::shared_ptr<HRR_Chain>& that )
     ( this->getLogLikelihood() + this->getLogPGamma() +
      that->getLogLikelihood() + that->getLogPGamma() );
     
-    if( Distributions::randLogU01() < pCrossOver )
+    if( randLogU01() < pCrossOver )
     {
         // -- first chain
         
@@ -2133,7 +2138,7 @@ int HRR_Chain::uniform_crossOver_step( std::shared_ptr<HRR_Chain>& that )
     {
         for(unsigned int k=0; k<nOutcomes; ++k)
         {
-            if( Distributions::randU01() < 0.5 )
+            if( randU01() < 0.5 )
             {
                 gammaXO[0](j,k) = this->getGamma()(j,k);
                 gammaXO[1](j,k) = that->getGamma()(j,k);
@@ -2164,7 +2169,7 @@ int HRR_Chain::uniform_crossOver_step( std::shared_ptr<HRR_Chain>& that )
     ( this->getLogLikelihood()+ this->getLogPGamma() +
      that->getLogLikelihood() + that->getLogPGamma() );
     
-    if( Distributions::randLogU01() < pCrossOver )
+    if( randLogU01() < pCrossOver )
     {
         // -- first chain
         
@@ -2196,8 +2201,8 @@ int HRR_Chain::block_crossOver_step( std::shared_ptr<HRR_Chain>& that , arma::ma
     // Propose Crossover
     
     // Select the ONE index to foor the block
-    unsigned int predIdx = Distributions::randIntUniform(0, nVSPredictors-1 ); // pred
-    unsigned int outcIdx = Distributions::randIntUniform(0, nOutcomes-1 ); // outcome
+    unsigned int predIdx = randIntUniform(0, nVSPredictors-1 ); // pred
+    unsigned int outcIdx = randIntUniform(0, nOutcomes-1 ); // outcome
     
     arma::uvec covIdx = arma::find( arma::abs( corrMatX.row(predIdx) ) > threshold );  // this will include the original predIdx
     
@@ -2228,7 +2233,7 @@ int HRR_Chain::block_crossOver_step( std::shared_ptr<HRR_Chain>& that , arma::ma
     ( this->getLogLikelihood() + this->getLogPGamma() +
      that->getLogLikelihood() + that->getLogPGamma() );
     
-    if( Distributions::randLogU01() < pCrossOver )
+    if( randLogU01() < pCrossOver )
     {
         // -- first chain
         
@@ -2288,7 +2293,7 @@ void HRR_Chain::swapAll( std::shared_ptr<HRR_Chain>& thatChain )
 int HRR_Chain::globalStep( std::shared_ptr<HRR_Chain>& that )
 {
     
-    unsigned int globalType = Distributions::randIntUniform(0,3);
+    unsigned int globalType = randIntUniform(0,3);
     
     switch(globalType){
             

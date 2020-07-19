@@ -14,6 +14,33 @@
 #include <vector>
 #include <random>
 
+
+double randExponential(const double lambda);
+arma::vec randVecExponential(const unsigned int n, const double lambda);
+
+unsigned int randBinomial(const unsigned int n, const double p);
+arma::uvec randMultinomial(unsigned int n, const arma::vec prob);
+
+double randNormal(const double m, const double sigmaSquare); // random normal interface to arma::randn
+arma::vec randVecNormal(const int n, const double m, const double sigmaSquare);
+
+double randT(const double nu);
+arma::vec randVecT(const unsigned int n, const double nu);
+arma::vec randMvT(const double &nu, const arma::vec &m, const arma::mat &Sigma);
+
+
+arma::mat randWishart(double df, const arma::mat& S);
+arma::mat randMN(const arma::mat &M, const arma::mat &rowCov, const arma::mat &colCov);
+double randBeta(double a, double b);
+unsigned int randBernoulli(double pi);
+double randU01();
+double randLogU01();
+int randIntUniform(const int a,const int b);
+arma::ivec randIntUniform(const unsigned int n, const int a,const int b);
+
+double randIGamma(double a, double b);
+
+
 namespace Distributions{
 
 	class dimensionsNotMatching : public std::exception
@@ -40,33 +67,12 @@ namespace Distributions{
 		}
 	};
 
-	double randExponential(const double lambda);
-	arma::vec randExponential(const unsigned int n, const double lambda);
 
-	unsigned int randBinomial(const unsigned int n, const double p);
-	arma::uvec randMultinomial(unsigned int n, const arma::vec prob);
+    arma::mat randIWishart(double df, const arma::mat& S);
+    arma::vec randMvNormal(const arma::vec &m, const arma::mat &Sigma);
+    arma::mat randMN(const arma::mat &M, const arma::mat &rowCov, const arma::mat &colCov);
+    double randTruncNorm(double m, double sd,double lower, double upper);
 
-	double randNormal(const double m, const double sigmaSquare); // random normal interface to arma::randn
-	arma::vec randNormal(const int n, const double m, const double sigmaSquare);
-	arma::vec randMvNormal(const arma::vec &m, const arma::mat &Sigma);
-
-	double randT(const double nu);
-	arma::vec randT(const unsigned int n, const double nu);
-	arma::vec randMvT(const double &nu, const arma::vec &m, const arma::mat &Sigma);
-
-
-	arma::mat randWishart(double df, const arma::mat& S);
-	arma::mat randIWishart(double df, const arma::mat& S);
-	arma::mat randMN(const arma::mat &M, const arma::mat &rowCov, const arma::mat &colCov);
-	double randBeta(double a, double b);
-	unsigned int randBernoulli(double pi);
-	double randTruncNorm(double m, double sd,double lower, double upper);
-	double randU01();
-	double randLogU01();
-	int randIntUniform(const int a,const int b);
-	arma::ivec randIntUniform(const unsigned int n, const int a,const int b);
-
-	double randIGamma(double a, double b);
 
 	double logPDFIWishart(const arma::mat& M, double nu, const arma::mat& Sigma);
 	double logPDFMN(const arma::mat& X, const arma::mat& rowCov, const arma::mat colCov); //assuming zero mean

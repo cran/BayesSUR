@@ -9,13 +9,12 @@ using Rcpp::Rcerr;
 #endif
 
 #ifdef _OPENMP
-extern omp_lock_t RNGlock; //defined in global.h
+extern omp_lock_t RNGlock; /*defined in global.h*/
 #endif
-//extern std::vector<std::mt19937_64> rng;
+/*extern std::vector<std::mt19937_64> rng;*/
 
 #include <Rcpp.h>
 // [[Rcpp::plugins(openmp)]]
-
 
 
 using Utils::Chain_Data;
@@ -29,7 +28,7 @@ int drive_SUR( Chain_Data& chainData )
     Rcout << "Initialising the (SUR) MCMC Chain";
     
     ESS_Sampler<SUR_Chain> sampler( chainData.surData , chainData.nChains , 1.2 ,
-                                   chainData.gamma_sampler_type, chainData.gamma_type, chainData.beta_type, chainData.covariance_type, chainData.output_CPO, chainData.burnin );
+                                   chainData.gamma_sampler_type, chainData.gamma_type, chainData.beta_type, chainData.covariance_type, chainData.output_CPO, chainData.maxThreads, chainData.burnin );
     
     Rcout << " ... ";
     
@@ -553,7 +552,7 @@ int drive_HRR( Chain_Data& chainData )
     Rcout << "Initialising the (HRR) MCMC Chain ";
     
     ESS_Sampler<HRR_Chain> sampler( chainData.surData , chainData.nChains , 1.2 ,
-                                   chainData.gamma_sampler_type, chainData.gamma_type, chainData.beta_type, chainData.covariance_type, chainData.output_CPO, chainData.burnin );
+                                   chainData.gamma_sampler_type, chainData.gamma_type, chainData.beta_type, chainData.covariance_type, chainData.output_CPO, chainData.maxThreads, chainData.burnin );
     
     Rcout << " ... ";
     // *****************************
@@ -955,11 +954,11 @@ int drive( const std::string& dataFile, const std::string& mrfGFile, const std::
 {
     
     Rcout << "BayesSUR -- Bayesian Seemingly Unrelated Regression Modelling" << '\n';
-    
-#ifdef _OPENMP
-    Rcout << "Using OpenMP" << '\n';
-    omp_init_lock(&RNGlock);  // init RNG lock for the parallel part
-#endif
+
+    #ifdef _OPENMP
+        Rcout << "Using OpenMP" << '\n';
+        omp_init_lock(&RNGlock);  // init RNG lock for the parallel part
+    #endif
     
     // ###########################################################
     // ###########################################################
@@ -1006,16 +1005,6 @@ int drive( const std::string& dataFile, const std::string& mrfGFile, const std::
     {
         chainData.gamma_type = Gamma_Type::mrf ;
         
-        // try
-        // {
-        //     if ( mrfGFile != "" )
-        //           Utils::readGmrf(mrfGFile, chainData.mrfG);
-        // }
-        // catch(const std::exception& e)
-        // {
-        //     Rcerr << e.what() << '\n';
-        //     return 1;
-        // }
     }
     else
     {
@@ -1070,6 +1059,7 @@ int drive( const std::string& dataFile, const std::string& mrfGFile, const std::
     chainData.output_tail = output_tail;
     chainData.output_model_size = output_model_size;
     chainData.output_CPO = output_CPO;
+    chainData.maxThreads = maxThreads;
     chainData.output_model_visit = output_model_visit;
     
     // ***********************************
@@ -1136,46 +1126,15 @@ int drive( const std::string& dataFile, const std::string& mrfGFile, const std::
             throw Bad_Covariance_Type( chainData.covariance_type );
     }
     
-    //Rcout << "Init RNG engine .. ";
-    
-    // ############# Init the RNG generator/engine
-    //std::random_device r;
-    //unsigned int nThreads{1};
-    //Rcpp::RNGScope scope;
-#ifdef _OPENMP
-    // ENABLING NESTED PARALLELISM SEEMS TO SLOW DOWN CODE MORE THAN ANYTHING,
-    // I SUSPECT THE THREAD MANAGING OVERHEAD IS GREATER THAN EXPECTED
-    omp_set_nested(1); // 1=enable, 0=disable nested parallelism (run chains in parallel + compute likelihoods in parallel at least wrt to outcomes + wrt to individuals)
-    // MOST OF THE PARALLELISATION IMPROVEMENTS COME FROM OPENBLAS ANYWAY .. I WONDER IF ACCELERATING LA THOURGH GPU WOULD CHANGE THAT ..
-    
-    /*if ( omp_get_max_threads() == 1 )
-    {
-        nThreads = 1;
-        
-        Rcout << "\n The parallelization is disable by giving one thread!" << '\n';
-    }else
-    {
-        nThreads = std::min( 16, omp_get_max_threads()-1 ); //TODO: make 16 as parameter, note I still use -1 to allow PC to do work in the meantime
-    }*/
-    
-    //nThreads = std::min( omp_get_max_threads()-1, maxThreads );
-    omp_set_num_threads(  std::min( omp_get_max_threads()-1, maxThreads ) );
-#endif
-    /*
-    // rng.reserve(nThreads);  // reserve the correct space for the vector of rng engines
-    rng = std::vector<std::mt19937_64>(nThreads);
-    std::seed_seq seedSeq;    // and declare the seedSequence
-    std::vector<unsigned int> seedInit(8);
-    //long long int seed = std::chrono::system_clock::now().time_since_epoch().count();
-    //int seed = 123;
-    //Rcerr  << "Debug seed - seed: " << seed << '\n';
-    // seed all the engines
-    for(unsigned int i=0; i<nThreads; ++i)
-    {
-        rng[i] = std::mt19937_64(seed + i*(1000*(std::pow(chainData.surData.nOutcomes,3)*chainData.surData.nPredictors*3)*nIter) );
-    }
-    */
-    Rcout << " DONE ! " << '\n';
+    #ifdef _OPENMP
+            // ENABLING NESTED PARALLELISM SEEMS TO SLOW DOWN CODE MORE THAN ANYTHING,
+            // I SUSPECT THE THREAD MANAGING OVERHEAD IS GREATER THAN EXPECTED
+            omp_set_nested(1); // 1=enable, 0=disable nested parallelism (run chains in parallel + compute likelihoods in parallel at least wrt to outcomes + wrt to individuals)
+            // MOST OF THE PARALLELISATION IMPROVEMENTS COME FROM OPENBLAS ANYWAY .. I WONDER IF ACCELERATING LA THOURGH GPU WOULD CHANGE THAT ..
+            
+            //nThreads = std::min( omp_get_max_threads()-1, maxThreads );
+            omp_set_num_threads(  std::min( omp_get_max_threads()-1, maxThreads ) );
+    #endif
     
     // ###################################
     // Parameters Inits
@@ -1187,8 +1146,7 @@ int drive( const std::string& dataFile, const std::string& mrfGFile, const std::
         chainData.gammaInit = arma::umat(chainData.surData.nVSPredictors,chainData.surData.nOutcomes); // init empty
         for(unsigned int j=0; j<chainData.surData.nVSPredictors; ++j)
             for(unsigned int l=0; l< chainData.surData.nOutcomes; ++l)
-                chainData.gammaInit(j,l) = Distributions::randBernoulli( 0.5 );
-                //chainData.gammaInit(j,l) = Rcpp::rbinom( 1, 1, 0.5 )[0];
+                chainData.gammaInit(j,l) = randBernoulli( 0.1 );
         
     }else if( gammaInit == "1" ){
         // Static Init ***
