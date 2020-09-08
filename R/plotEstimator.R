@@ -1,11 +1,11 @@
-#' @title plot the posterior mean estimators
+#' @title plot the estimators
 #' @description
 #' Plot the posterior mean estimators from a "BayesSUR" class object, including the coefficients beta, latent indicator variable gamma and graph of responses.
 #' @importFrom graphics axis box text mtext par image
 #' @importFrom grDevices colorRampPalette dev.off grey
 #' @importFrom tikzDevice tikz
-#' @name plot.estimator
-#' @param x an object of class \code{get.estimator} with \code{estimator=c("beta","gamma","Gy")}
+#' @name plotEstimator
+#' @param x an object of class \code{BayesSUR}
 #' @param estimator print the heatmap of estimators. The value "beta" is for the estimated coefficients matrix, "gamma" for the latent indicator matrix and "Gy" for the graph of responses
 #' @param colorScale.gamma value palette for gamma
 #' @param colorScale.beta a vector of three colors for diverging color schemes
@@ -27,48 +27,58 @@
 #' @param ... other arguments
 #' 
 #' @examples
-#' data("example_eQTL", package = "BayesSUR")
+#' data("exampleEQTL", package = "BayesSUR")
 #' hyperpar <- list( a_w = 2 , b_w = 5 )
 #' 
 #' set.seed(9173)
-#' fit <- BayesSUR(Y = example_eQTL[["blockList"]][[1]], 
-#'                 X = example_eQTL[["blockList"]][[2]],
-#'                 data = example_eQTL[["data"]], outFilePath = tempdir(),
+#' fit <- BayesSUR(Y = exampleEQTL[["blockList"]][[1]], 
+#'                 X = exampleEQTL[["blockList"]][[2]],
+#'                 data = exampleEQTL[["data"]], outFilePath = tempdir(),
 #'                 nIter = 100, burnin = 50, nChains = 2, gammaPrior = "hotspot",
 #'                 hyperpar = hyperpar, tmpFolder = "tmp/" )
 #' 
 #' ## check output
 #' # Plot the estimators from the fitted object
-#' \dontrun{
-#' estimators <- get.estimator(fit, estimator = c("beta","gamma","Gy"))
-#' plot(estimators)
+#' plotEstimator(fit, estimator=c("beta","gamma","Gy"))
 #' 
+#' \dontrun{
 #' #Set up temporary work directory for saving a pdf figure
 #' td <- tempdir()
 #' oldwd <- getwd()
 #' setwd(td)
 #' 
 #' # Produce authentic math formulas in the graph
-#' plot(estimators, fig.tex = TRUE)
+#' plotEstimator(fit, estimator=c("beta","gamma","Gy"), fig.tex = TRUE)
 #' system(paste(getOption("pdfviewer"), "ParamEstimator.pdf"))
 #' setwd(oldwd)
 #' }
 #' 
 #' @export
-plot.estimator <- function(x, estimator=NULL, colorScale.gamma=grey((100:0)/100), colorScale.beta=c("blue","white","red"), legend.cex.axis=1, name.responses=NA, 
+plotEstimator <- function(x, estimator=NULL, colorScale.gamma=grey((100:0)/100), colorScale.beta=c("blue","white","red"), legend.cex.axis=1, name.responses=NA, 
                           name.predictors=NA, xlab="", ylab="", fig.tex=FALSE, output="ParamEstimator", header="", header.cex=2, tick=FALSE, mgp=c(2.5,1,0),
                           title.beta=paste("Estimator","$\\hat{\\bm{B}}$"), title.gamma=paste("Estimator","$\\hat{\\mathbf{\\Gamma}}$"),
                           title.Gy=paste("Estimator","$\\hat{\\mathcal{G}}$"), cex.main=1.5,...){
   
-  beta_hat <- x$beta
-  gamma_hat <- x$gamma
-  nonpen <- nrow(beta_hat) - nrow(gamma_hat)
+  if (!inherits(x, "BayesSUR")) 
+    stop("Use only with a \"BayesSUR\" object")
+  if(sum(! estimator %in% c("beta","gamma","Gy")) > 0)
+    stop("Please specify correct argument estimator!")
   
-  if(is.null(estimator)){
-    estimator <- names(x)
+  x$output[-1] <- paste(x$output$outFilePath,x$output[-1],sep="")
+  beta_hat <- as.matrix( read.table(x$output$beta) )
+  gamma_hat <- as.matrix( read.table(x$output$gamma) )
+  nonpen <- nrow(beta_hat) - nrow(gamma_hat)
+  if(nonpen > 0){
+    rownames(beta_hat) <- c(colnames(read.table(x$output$X0,header=T)), colnames(read.table(x$output$X,header=T)))
   }else{
-    if(sum(! estimator %in% names(x))>0)
-      stop("Please specify correct argument estimator!")
+    rownames(beta_hat) <- colnames(read.table(x$output$X,header=T))
+  }
+  colnames(beta_hat) <- colnames(read.table(x$output$Y,header=T))
+  
+  covariancePrior <- x$input$covariancePrior
+  if( (covariancePrior == "HIW") & ("Gy" %in% estimator) ){
+    Gy_hat <- as.matrix( read.table(x$output$Gy) )
+    colnames(Gy_hat) <- rownames(Gy_hat) <- colnames(read.table(x$output$Y,header=T))
   }
   
   # specify the labels of axes
@@ -124,7 +134,6 @@ plot.estimator <- function(x, estimator=NULL, colorScale.gamma=grey((100:0)/100)
     }
     
     if("Gy" %in% estimator){
-      Gy_hat <- x$Gy
       
       image(z=Gy_hat+diag(ncol(Gy_hat)), x=1:nrow(Gy_hat), y=1:nrow(Gy_hat), col=colorScale.gamma, mgp=mgp, 
             axes=ifelse(is.na(name.responses)[1],TRUE,FALSE), xlab=ylab, ylab=ylab,main="Estimated graph of responses",cex.main=cex.main,cex.lab=1.5,...);box()
@@ -175,7 +184,6 @@ plot.estimator <- function(x, estimator=NULL, colorScale.gamma=grey((100:0)/100)
     }
     
     if("Gy" %in% estimator){
-      Gy_hat <- x$Gy
       
       image(z=Gy_hat+diag(ncol(Gy_hat)), x=1:nrow(Gy_hat), y=1:nrow(Gy_hat), col=colorScale.gamma, axes=ifelse(is.na(name.responses)[1],TRUE,FALSE), mgp=mgp, 
             xlab=ylab, ylab=ylab, main=title.Gy,cex.main=cex.main,cex.lab=1.5,...);box()

@@ -3,9 +3,9 @@
 #' Plot the network representation of the associations between responses and predictors, based on the estimated gamma matrix and graph of responses from a "BayesSUR" class object.
 #' @importFrom graphics text 
 #' @importFrom grDevices gray 
-#' @importFrom igraph V E gsize layout_in_circle plot.igraph degree layout.fruchterman.reingold delete.vertices graph.adjacency
-#' @name plot.network
-#' @param x an object of class \code{get.estimator} with \code{estimator=c("gamma","Gy")}
+#' @importFrom igraph V E gsize layout_in_circle plot.igraph degree layout.fruchterman.reingold delete.vertices graph.adjacency delete.edges ecount V<-
+#' @name plotNetwork
+#' @param x an object of class \code{BayesSUR}
 #' @param includeResponse A vector of the response names which are shown in the network
 #' @param excludeResponse A vector of the response names which are not shown in the network
 #' @param includePredictor A vector of the predictor names which are shown in the network
@@ -18,44 +18,60 @@
 #' @param no.isolates remove isolated nodes from responses graph and Full graph, may get problem if there are also isolated Predictors
 #' @param lineup A ratio of the heights between responses' area and Predictors'
 #' @param gray.alpha the opacity. The default is 0.6
-#' @param edgewith.response the edge width betwen response nodes
-#' @param edgewith.predictor the edge width betwen the predictor and response node
-#' @param edge.weight draw weighted edges after thresholding at 0.5. The defaul value \code{FALSE} is not to draw weigthed edges
+#' @param edgewith.response the edge width between response nodes
+#' @param edgewith.predictor the edge width between the predictor and response node
+#' @param edge.weight draw weighted edges after thresholding at 0.5. The defaul value \code{FALSE} is not to draw weighted edges
 #' @param label.predictor A vector of the names of predictors
 #' @param label.response A vector of the names of response variables
 #' @param color.predictor color of the predictor nodes
-#' @param color.response color of the reponse nodes
-#' @param name.predictors a subtitle for the predictors
-#' @param name.responses a subtitle for the responses
-#' @param vertex.frame.color The color of the frame of the vertices. If you don't want vertices to have a frame, supply NA as the color name
+#' @param color.response color of the response nodes
+#' @param name.predictors A subtitle for the predictors
+#' @param name.responses A subtitle for the responses
+#' @param vertex.frame.color color of the frame of the vertices. If you don't want vertices to have a frame, supply NA as the color name
 #' @param layoutInCircle place vertices on a circle, in the order of their vertex ids. The default is \code{FALSE}
 #' @param header the main title
 #' @param ... other arguments
 #' 
 #' @examples
-#' data("example_eQTL", package = "BayesSUR")
+#' data("exampleEQTL", package = "BayesSUR")
 #' hyperpar <- list( a_w = 2 , b_w = 5 )
 #' 
 #' set.seed(9173)
-#' fit <- BayesSUR(Y = example_eQTL[["blockList"]][[1]], 
-#'                 X = example_eQTL[["blockList"]][[2]],
-#'                 data = example_eQTL[["data"]], outFilePath = tempdir(),
+#' fit <- BayesSUR(Y = exampleEQTL[["blockList"]][[1]], 
+#'                 X = exampleEQTL[["blockList"]][[2]],
+#'                 data = exampleEQTL[["data"]], outFilePath = tempdir(),
 #'                 nIter = 100, burnin = 50, nChains = 2, gammaPrior = "hotspot",
 #'                 hyperpar = hyperpar, tmpFolder = "tmp/" )
 #' 
 #' ## check output
 #' # show the Network representation of the associations between responses and features
-#' network <- get.estimator(fit, estimator = c("gamma","Gy"))
-#' plot(network)
+#' plotNetwork(fit)
 #' 
 #' @export 
-plot.network <- function(x, includeResponse=NULL, excludeResponse=NULL, includePredictor=NULL, excludePredictor=NULL, 
+plotNetwork <- function(x, includeResponse=NULL, excludeResponse=NULL, includePredictor=NULL, excludePredictor=NULL, 
                         MatrixGamma=NULL, PmaxPredictor=0.5, PmaxResponse=0.5, nodesizePredictor=2, nodesizeResponse=15, no.isolates=FALSE,
                         lineup=1.2, gray.alpha=0.6, edgewith.response=5, edgewith.predictor=2, edge.weight=FALSE, label.predictor=NULL,
                         label.response=NULL, color.predictor=NULL,color.response=NULL, name.predictors=NULL,name.responses=NULL, 
                         vertex.frame.color=NA,layoutInCircle=FALSE, header="", ...){
   
-  gamma_hat <- x$gamma
+  if (!inherits(x, "BayesSUR")) 
+    stop("Use only with a \"BayesSUR\" object")
+  
+  if( PmaxPredictor<0 | PmaxPredictor>1 )
+    stop("Please specify correct argument 'PmaxPredictor' in [0,1]!")
+  if( PmaxResponse<0 | PmaxResponse>1 )
+    stop("Please specify correct argument 'PmaxResponse' in [0,1]!")
+  
+  x$output[-1] <- paste(x$output$outFilePath,x$output[-1],sep="")
+  covariancePrior <- x$input$covariancePrior
+  if(covariancePrior == "HIW"){
+    Gy_hat <- as.matrix( read.table(x$output$Gy) )
+  }else{
+    stop("Gy is only estimated with hyper-inverse Wishart prior for the covariance matrix of responses!")
+  }
+  gamma_hat <- as.matrix( read.table(x$output$gamma) )
+  colnames(gamma_hat) <- names(read.table(x$output$Y,header=T))
+  rownames(gamma_hat) <- colnames(read.table(x$output$X,header=T))
   
   if(sum(colnames(gamma_hat)==paste("V",1:ncol(gamma_hat),sep="")) == ncol(gamma_hat))
     colnames(gamma_hat) <- paste("Y",1:ncol(gamma_hat),sep="")
@@ -76,7 +92,6 @@ plot.network <- function(x, includeResponse=NULL, excludeResponse=NULL, includeP
   
   gamma_hat <- gamma_hat[!excludePredictor.idx,!excludeResponse.idx]
   
-  Gy_hat <- x$Gy
   Gy_hat <- Gy_hat[!excludeResponse.idx,!excludeResponse.idx]
   
   if(edge.weight){
@@ -88,6 +103,10 @@ plot.network <- function(x, includeResponse=NULL, excludeResponse=NULL, includeP
   }else{
     Gy_thresh <- as.matrix( Gy_hat > PmaxResponse )
     gamma_thresh <- as.matrix(gamma_hat>PmaxPredictor)
+  }
+  
+  if( sum(rowSums(gamma_thresh)!=0) == 0 ){
+    stop(paste("There were no predictors with mPIP gamma > ", PmaxPredictor, ". Not able to draw a network!", sep=""))
   }
   
   gamma_thresh <- matrix(gamma_thresh[rowSums(gamma_thresh)!=0,], ncol=ncol(gamma_hat))
@@ -106,6 +125,12 @@ plotSEMgraph <- function(ADJmatrix,GAMmatrix,nodesizeSNP=2,nodesizeMET=25,no.iso
                          lineup=1,gray.alpha=0.6,edgewith.response=5,edgewith.predictor=2,
                          label.predictor=NULL,label.response=NULL, color.predictor=NULL,color.response=NULL, 
                          name.predictors=NULL,name.responses=NULL,edge.weight=FALSE, vertex.frame.color=NA,layoutInCircle=FALSE,...){
+  
+  ## give warnings for re-defined arguments
+  if(exists("edge.width")) warning("Argument 'edge.width' was re-defined into new argments 'edgewith.response' and 'edgewith.predictor' in this function!")
+  if(exists("edge.color")) warning("Argument 'edge.color' cannot be changed  in this function!")
+  if(exists("edge.arrow.size")) warning("Argument 'edge.arrow.size' cannot be changed in this function!")
+  #if(exists("layout")) warning("Argument 'layout' cannot be changed in this function!")
   
   # ADJmatrix must be a square qxq adjacency matrix (or data frame)
   qq <- dim(ADJmatrix)[1]
@@ -139,7 +164,7 @@ plotSEMgraph <- function(ADJmatrix,GAMmatrix,nodesizeSNP=2,nodesizeMET=25,no.iso
   if(no.isolates){
     graphADJ <- delete.vertices(graphADJ,degree(graphADJ)==0) 
     graphSEM <- delete.vertices(graphSEM,degree(graphSEM)==0) 
-    print("******* Removing isolated nodes from Adjacency and Full SEM, may get problem if there are also isolated SNPs.")
+    message("******* Removing isolated nodes from Adjacency and Full SEM, may get problem if there are also isolated SNPs.")
   } 
   
   # get co-ords for undirected edges using layout function (scaled)
@@ -193,10 +218,17 @@ plotSEMgraph <- function(ADJmatrix,GAMmatrix,nodesizeSNP=2,nodesizeMET=25,no.iso
     layoutSEM <- layout_in_circle(graphSEM)
   }
   
-  plot.igraph(graphSEM,edge.arrow.size=0.5, edge.width=edge.width, vertex.frame.color=vertex.frame.color,
-              edge.color=c(rep(gray(0),2*n.edgeADJ),rep(gray(0.7, alpha=gray.alpha),2*n.edgeGAM)),layout=layoutSEM,...)
+  # plot undirected graph between response variables 
+  graphSEMresponses <- delete.edges(graphSEM, E(graphSEM)[(1:ecount(graphSEM))[-c(1:(2*n.edgeADJ))]])
+  plot.igraph(graphSEMresponses,edge.arrow.size=0, edge.width=edge.width[1:(2*n.edgeADJ)], vertex.frame.color=vertex.frame.color,
+              edge.color=rep(gray(0),2*n.edgeADJ),layout=layoutSEM,...)
+  # plot directed graph between predictors and response variables 
+  graphSEMpredictor2responses <- delete.edges(graphSEM, E(graphSEM)[(1:ecount(graphSEM))[c(1:(2*n.edgeADJ))]])
+  plot.igraph(graphSEMpredictor2responses,edge.arrow.size=0.5, edge.width=edge.width[-c(1:(2*n.edgeADJ))], vertex.frame.color=vertex.frame.color,
+              edge.color=rep(gray(0.7, alpha=gray.alpha),2*n.edgeGAM),layout=layoutSEM,add=TRUE,...)
   
   if(!is.null(name.predictors)) text(-1,-1.3,name.predictors,cex=1.2)
   if(!is.null(name.responses)) text(0.4,-1.3,name.responses,cex=1.2)
+  
   
 }

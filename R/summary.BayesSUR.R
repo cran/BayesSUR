@@ -1,26 +1,26 @@
-#' @title summarizing Bayesian Seemingly Unrelated Regressions Fits
+#' @title summary method for class \code{BayesSUR}
 #' @description
-#' Summary method for class "BayesSUR". It includes the argument matching information, Top predictors/responses on average mPIP across all responses/predictors, 
+#' Summary method for class \code{BayesSUR}. It includes the argument matching information, Top predictors/responses on average mPIP across all responses/predictors, 
 #' elpd estimates, MCMC specification, model specification and hyper-parameters. The summarized number of the selected variable corresponds to the posterior 
 #' mean of the latent indicator variable thresholding at 0.5 by default.
 #' 
 #' @importFrom Matrix Matrix
 #' @name summary.BayesSUR
-#' @param object an object of class "BayesSUR"
+#' @param object an object of class \code{BayesSUR}
 #' @param Pmax threshold that truncates the estimated coefficients based on thresholding the estimated latent indicator variable. Default is 0.5
 #' @param ... other arguments
 #' 
-#' @return Return a result summary from an object of class "BayesSUR", including the CPOs, number of selected predictors with mPIP>\code{Pmax}, top 10 predictors on average mPIP across all responses,
+#' @return Return a result summary from an object of class \code{BayesSUR}, including the CPOs, number of selected predictors with mPIP>\code{Pmax}, top 10 predictors on average mPIP across all responses,
 #' top 10 responses on average mPIP across all predictors, Expected log pointwise predictive density (elpd) estimates, MCMC specification, model specification (i.e., covariance prior and gamma prior) and hyper-parameters. 
 #' 
 #' @examples
-#' data(example_eQTL, package = "BayesSUR")
+#' data(exampleEQTL, package = "BayesSUR")
 #' hyperpar = list( a_w = 2 , b_w = 5 )
 #' 
 #' set.seed(9173)
-#' fit <- BayesSUR(Y = example_eQTL[["blockList"]][[1]], 
-#'                 X = example_eQTL[["blockList"]][[2]],
-#'                 data = example_eQTL[["data"]], outFilePath = tempdir(),
+#' fit <- BayesSUR(Y = exampleEQTL[["blockList"]][[1]], 
+#'                 X = exampleEQTL[["blockList"]][[2]],
+#'                 data = exampleEQTL[["data"]], outFilePath = tempdir(),
 #'                 nIter = 100, burnin = 50, nChains = 2, gammaPrior = "hotspot",
 #'                 hyperpar = hyperpar, tmpFolder = "tmp/", output_CPO=TRUE)
 #' 
@@ -30,6 +30,9 @@
 #' 
 #' @export
 summary.BayesSUR <- function(object, Pmax=0.5, ...){
+  
+  if( Pmax<0 | Pmax>1 )
+    stop("Please specify correct argument 'Pmax' in (0,1)!")
   
   ans <- list(status=object$status)
   if(is.null(object$output$CPO)){

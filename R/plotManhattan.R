@@ -2,8 +2,8 @@
 #' @description
 #' Plot Manhattan-like plots for marginal posterior inclusion probabilities (mPIP) and numbers of responses of association for predictors of a "BayesSUR" class object.
 #' @importFrom graphics axis box text par plot.default segments
-#' @name plot.Manhattan
-#' @param x an object of class \code{get.estimator} with \code{estimator="gamma"}
+#' @name plotManhattan
+#' @param x an object of class \code{BayesSUR}
 #' @param which if it's value "1" showing the Manhattan-like plot of the marginal posterior inclusion probabilities (mPIP). If it's value "2" showing the Manhattan-like plot of the number of responses. The default is to show both figures.
 #' @param x.loc a vector of features distance
 #' @param axis.label a vector of predictor names which are shown in the Manhattan-like plot. The value "NULL" only showing the indices. The default "auto" show the predictor names from the orginal data.
@@ -22,26 +22,34 @@
 #' @param ... other arguments
 #' 
 #' @examples
-#' data("example_eQTL", package = "BayesSUR")
+#' data("exampleEQTL", package = "BayesSUR")
 #' hyperpar <- list( a_w = 2 , b_w = 5 )
 #' 
 #' set.seed(9173)
-#' fit <- BayesSUR(Y = example_eQTL[["blockList"]][[1]], 
-#'                 X = example_eQTL[["blockList"]][[2]],
-#'                 data = example_eQTL[["data"]], outFilePath = tempdir(),
+#' fit <- BayesSUR(Y = exampleEQTL[["blockList"]][[1]], 
+#'                 X = exampleEQTL[["blockList"]][[2]],
+#'                 data = exampleEQTL[["data"]], outFilePath = tempdir(),
 #'                 nIter = 100, burnin = 50, nChains = 2, gammaPrior = "hotspot",
 #'                 hyperpar = hyperpar, tmpFolder = "tmp/" )
 #' 
 #' ## check output
 #' # show the Manhattan-like plots
-#' gamma <- get.estimator(fit, estimator="gamma")
-#' plot(gamma)
+#' plotManhattan(fit)
 #' 
 #' @export
-plot.Manhattan <- function(x, which=c(1,2), x.loc=FALSE, axis.label="auto", mark.responses=NULL, xlab1="Predictors", ylab1="mPIP", xlab2="Predictors", ylab2="No. of responses",
+plotManhattan <- function(x, which=c(1,2), x.loc=FALSE, axis.label="auto", mark.responses=NULL, xlab1="Predictors", ylab1="mPIP", xlab2="Predictors", ylab2="No. of responses",
                           threshold=0.5,las=0, cex.axis=1, mark.pos=c(0,0), mark.color=2, mark.cex=0.8, header="", ...){
   
-  gamma <- x
+  if (!inherits(x, "BayesSUR")) 
+    stop("Use only with a \"BayesSUR\" object")
+  
+  if( threshold<0 | threshold>1 )
+    stop("Please specify orrect argument 'threshold' in [0,1]!")
+  
+  x$output[-1] <- paste(x$output$outFilePath,x$output[-1],sep="")
+  gamma <- as.matrix( read.table(x$output$gamma) )
+  rownames(gamma) <- colnames(read.table(x$output$X,header=T))
+  
   if(is.null(axis.label)){
     x.loc <- 1:nrow(gamma)
     names(x.loc) <- 1:nrow(gamma)
@@ -88,11 +96,13 @@ plot.Manhattan <- function(x, which=c(1,2), x.loc=FALSE, axis.label="auto", mark
   
   # Manhattan plot for numbers of responses 
   if(2 %in% which){
-    par(mar=c(5,4,3,2))
+    par(mar=c(6,4,3,2))
   no.gamma <- rowSums(gamma>=threshold)
   plot.default(no.gamma ~ c(1:nrow(gamma)), xlim=c(1,nrow(gamma)), ylim=c(0,max(no.gamma)+0.3), type='n', xaxt = 'n', ylab=ylab2, xlab=xlab2, main="", ...)
   segments(1:nrow(gamma), 0, 1:nrow(gamma), no.gamma)
   axis(1, at=x.loc, labels=names(x.loc), las=las, cex.axis=cex.axis)
+  
+  text(nrow(gamma)/8, -max(no.gamma)/1.3, paste("NOTE: Number of responses with mPIP >=", threshold), cex=.5, xpd=NA)
   }
 
   title(paste("\n\n",header,sep=""), outer=T)

@@ -11,20 +11,17 @@ An object of class \code{list} of length 2.
 targetGene
 }
 \description{
-Indexes list of target genes corresponding the \code{example_GDSC} data set. It has two components representing the gene indexes of the MAPK/ERK pathway and BCR-ABL gene fusion in the \code{example_GDSC} data set. 
-
-#importFrom plyr mapvalues
-#importFrom data.table like
+Indices list of target genes corresponding the \code{example_GDSC} data set. It has two components representing the gene indices of the MAPK/ERK pathway and BCR-ABL gene fusion in the \code{example_GDSC} data set.
 }
 \examples{
-# Load the indexes of gene targets from the GDSC sample dataset
+# Load the indices of gene targets from the GDSC sample dataset
 data("targetGene", package = "BayesSUR")
 str(targetGene)
 
 \dontrun{
 #===============
 # This code below is to do preprocessing of GDSC data and obtain the complete dataset
-# "example_GDSC.rda" above. The user needs load the datasets from 
+# "targetGene.rda" above. The user needs load the datasets from 
 # ftp://ftp.sanger.ac.uk/pub4/cancerrxgene/releases/release-5.0/. 
 # But downloading and transforming the three used datasets below to *.csv files first.
 #===============

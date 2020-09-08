@@ -11,12 +11,12 @@
 #' 
 #' @examples
 #' # Load the eQTL sample dataset
-#' data("example_eQTL", package = "BayesSUR")
-#' str(example_eQTL)
+#' data("exampleEQTL", package = "BayesSUR")
+#' str(exampleEQTL)
 #' 
 #' \dontrun{
 #' #===============
-#' # The code below is to show how to generate the dataset "example_eQTL.rda" above
+#' # The code below is to show how to generate the dataset "exampleEQTL.rda" above
 #' #===============
 #' 
 #' requireNamespace("BDgraph", quietly = TRUE)
@@ -38,11 +38,11 @@
 #' 
 #' ####################################################################
 #' 
-#' graph_pattern = 2 # in 2,3,4
+#' graph_pattern = 2
 #' 
-#' snr = 25  # in 5,15,25
+#' snr = 25
 #' 
-#' corr_param = 0.9 # in 0.3 , 0.6 , 0.9
+#' corr_param = 0.9
 #' 
 #' ### Create the underlying graph
 #' if(graph_pattern==1){
@@ -257,10 +257,10 @@
 #' mrfG <- Gmrf[!duplicated(Gmrf),]
 #' data = cbind(y,x[,-1])   # leave out the intercept because is coded inside already
 #' 
-#' example_eQTL = list(data=data, blockList=list(1:s,s+1:p))
+#' exampleEQTL = list(data=data, blockList=list(1:s,s+1:p))
 #' 
 #' ## Write data file to the user's directory by save()
 #' 
 #' }
 #'
-"example_eQTL"
+"exampleEQTL"

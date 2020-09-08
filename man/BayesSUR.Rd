@@ -3,20 +3,19 @@
 \docType{package}
 \name{BayesSUR}
 \alias{BayesSUR}
-\title{main function of the package}
+\title{Fitting BayesSUR models}
 \usage{
 BayesSUR(
+  data = NULL,
   Y,
   X,
   X_0 = NULL,
-  data = NULL,
-  outFilePath = "",
+  covariancePrior = "HIW",
+  gammaPrior = "hotspot",
   nIter = 10000,
   burnin = 5000,
   nChains = 2,
-  covariancePrior = "HIW",
-  gammaPrior = "",
-  betaPrior = "independent",
+  outFilePath = "",
   gammaSampler = "bandit",
   gammaInit = "R",
   mrfG = NULL,
@@ -25,7 +24,7 @@ BayesSUR(
   maxThreads = 1,
   output_gamma = TRUE,
   output_beta = TRUE,
-  output_G = TRUE,
+  output_Gy = TRUE,
   output_sigmaRho = TRUE,
   output_pi = TRUE,
   output_tail = TRUE,
@@ -39,29 +38,28 @@ BayesSUR(
 )
 }
 \arguments{
-\item{Y, X, X_0}{vectors of indexes (with respect to the data matrix) for the outcomes, the covariates to select and the fixed covariates respectively if data is either a path to a file or a matrix;
-if the 'data' argument is not provided, these needs to be matrices containing the data instead.}
+\item{data}{a numeric matrix with variables on the columns and observations on the rows, if arguments \code{Y} and \code{X} (and possibly \code{X_0}) are vectors. Can be \code{NULL} if arguments \code{Y} and \code{X} (and possibly \code{X_0}) are numeric matrices.}
 
-\item{data}{a data frame if using \code{formula}. If not using \code{formula}, it is either a matrix/dataframe or the path to (a plain text) data file with variables on the columns and observations on the rows}
+\item{Y, X}{vectors of indices (with respect to the data matrix) for the outcomes (\code{Y}) and the predictors to select (\code{X}) respectively; if the data argument is not provided, these needs to be numeric matrices containing the data instead, with variables on the columns and observations on the rows.}
+
+\item{X_0}{vectors of indices (with respect to the data matrix) for the fixed predictors that are not selected, i.e. always included in the model; if the data argument is not provided, this needs to be a numeric matrix containing the data instead, with variables on the columns and observations on the rows.}
+
+\item{covariancePrior}{string indicating the prior for the covariance $C$; it has to be either \code{HIW} for the hyper-inverse-Wishar (which will result in a sparse covariance matrix),
+\code{IW} for the inverse-Wishart prior ( dense covariance ) or \code{IG} for independent inverse-Gamma on all the diagonal elements and 0 otherwise. See the details for the model specification}
+
+\item{gammaPrior}{string indicating the gamma prior to use, either \code{hotspot} (default) for the Hotspot prior of Bottolo (2011), \code{MRF} for the Markov Random Field prior or \code{hierarchical} for a simpler hierarchical prior. See the details for the model specification}
+
+\item{nIter}{number of iterations for the MCMC procedure. Default 10000.}
+
+\item{burnin}{number of iterations to discard at the start of the chain. Default is 5000.}
+
+\item{nChains}{number of parallel tempered chains to run (default 2). The temperature is adapted during the burnin phase.}
 
 \item{outFilePath}{path to where the output files are to be written. The default path is the currect working directory.}
 
-\item{nIter}{number of iterations for the MCMC procedure.}
+\item{gammaSampler}{string indicating the type of sampler for gamma, either \code{bandit} for the Thompson sampling inspired samper or \code{MC3} for the usual MC^3 sampler.  See Russo et al.(2018) or Madigan and York (1995) for details.}
 
-\item{burnin}{number of iterations (or fraction of iterations) to discard at the start of the chain. Default is 0.}
-
-\item{nChains}{number of parallel chains to run.}
-
-\item{covariancePrior}{string indicating the prior for the covariance $C$; it has to be either "HIW" for the hyper-inverse-Wishar (which will result in a sparse covariance matrix),
-"IW" for the inverse-Wishart prior ( dense covariance ) or "IG" for independent inverse-Gamma on all the diagonal elements and 0 otherwise. See the details for the model specification}
-
-\item{gammaPrior}{string indicating the gamma prior to use, either "hotspot" for the Hotspot prior of Bottolo (2011), "MRF" for the Markov Random Field prior or "hierarchical" for a simpler hierarchical prior. See the details for the model specification}
-
-\item{betaPrior}{string indicating the beta prior to use, either "independent" for the independent spike-and-slab prior or "reGroup" for the random effects for \code{X_0} and independent spike-and-slab priors for other predictors}
-
-\item{gammaSampler}{string indicating the type of sampler for gamma, either "bandit" for the Thompson sampling inspired samper or "MC3" for the usual $MC^3$ sampler}
-
-\item{gammaInit}{gamma initialisation to either all-zeros ("0"), all ones ("1"), MLE-informed ("MLE") or (default) randomly ("R").}
+\item{gammaInit}{gamma initialisation to either all-zeros (\code{0}), all ones (\code{1}), MLE-informed (\code{MLE}) or (default) randomly (\code{R}).}
 
 \item{mrfG}{either a matrix or a path to the file containing the G matrix for the MRF prior on gamma (if necessary)}
 
@@ -69,13 +67,13 @@ if the 'data' argument is not provided, these needs to be matrices containing th
 
 \item{standardize.response}{Standardization for the response variables. Default is standardize.response=TRUE.}
 
-\item{maxThreads}{maximum threads used for parallelization. Default is 1.}
+\item{maxThreads}{maximum threads used for parallelization. Default is 1. Reproducibility of results with \code{set.seed()} is only guaranteed if \code{maxThreads=1}.}
 
 \item{output_gamma}{allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for  gamma. See the return value below for more information.}
 
 \item{output_beta}{allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for beta. See the return value below for more information.}
 
-\item{output_G}{allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for G. See the return value below for more information.}
+\item{output_Gy}{allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for Gy. See the return value below for more information.}
 
 \item{output_sigmaRho}{allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for sigmaRho. See the return value below for more information.}
 
@@ -87,7 +85,8 @@ if the 'data' argument is not provided, these needs to be matrices containing th
 
 \item{output_model_visit}{allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for all visited models over the MCMC iterations. Default is \code{FALSE}. See the return value below for more information.}
 
-\item{output_CPO}{allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for *; possible outputs are gamma, G, beta, sigmaRho, pi, tail (hotspot tail probability), model_size, CPO. See the return value below for more information.}
+\item{output_CPO}{allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for (scaled) conditional predictive ordinates (\code{*_CPO_out.txt}), 
+CPO with joint posterior predictive of the response variables (\code{*_CPOsumy_out.txt}) and widely applicable information criterion (\code{*_WAIC_out.txt}). See the return value below for more information.}
 
 \item{output_Y}{allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for responses dataset Y.}
 
@@ -99,7 +98,7 @@ Their default values are a_w=2, b_w=5, a_omega=2, b_omega=1, a_o=2, b_o=p-2, a_p
 \item{tmpFolder}{the path to a temporary folder where intermediate data files are stored (will be erased at the end of the chain) default to local tmpFolder}
 }
 \value{
-An object of class "BayesSUR":
+An object of class \code{BayesSUR} is saved as \code{obj_BayesSUR.RData} in the output file, including the following components:
 \itemize{
 \item status - the running status
 \item input - a list of all input parameters by the user
@@ -110,10 +109,10 @@ An object of class "BayesSUR":
 \item "\code{*_pi_out.txt}" - posterior mean of the predictor effects (prospensity) by decomposing the probability of the latent indicator.
 \item "\code{*_hotspot_tail_p_out.txt}" - posterior mean of the hotspot tail probability. Only available for the hotspot prior on the gamma.
 \item "\code{*_beta_out.txt}" - posterior mean of the coefficients matrix.
-\item "\code{*_G_out.txt}" - posterior mean of the response graph. Only available for the HIW prior on the covariance. 
+\item "\code{*_Gy_out.txt}" - posterior mean of the response graph. Only available for the HIW prior on the covariance. 
 \item "\code{*_sigmaRho_out.txt}" - posterior mean of the transformed parameters. Not available for the IG prior on the covariance.
 \item "\code{*_model_size_out.txt}" - contains each row for the\eqn{1000t}-th iteration's model sizes of the multiple response variables.
-\item "\code{*_model_visit_g_out.txt}" - contains each row for the nonzero indices of the vectorized estimated graph matrix for each iteration.
+\item "\code{*_model_visit_gy_out.txt}" - contains each row for the nonzero indices of the vectorized estimated graph matrix for each iteration.
 \item "\code{*_model_visit_gamma_out.txt}" - contains each row for the nonzero indices of the vectorized estimated gamma matrix for each iteration.
 \item "\code{*_CPO_out.txt}" - the (scaled) conditional predictive ordinates (CPO). 
 \item "\code{*_CPOsumy_out.txt}" - the (scaled) conditional predictive ordinates (CPO) with joint posterior predictive of the response variables.
@@ -142,12 +141,12 @@ The nine models specified through the arguments \code{covariancePrior} and \code
 }
 }
 \examples{
-data("example_eQTL", package = "BayesSUR")
+data("exampleEQTL", package = "BayesSUR")
 hyperpar <- list( a_w = 2 , b_w = 5 )
 set.seed(9173)
-fit <- BayesSUR(Y = example_eQTL[["blockList"]][[1]], 
-                X = example_eQTL[["blockList"]][[2]],
-                data = example_eQTL[["data"]], outFilePath = tempdir(),
+fit <- BayesSUR(Y = exampleEQTL[["blockList"]][[1]], 
+                X = exampleEQTL[["blockList"]][[2]],
+                data = exampleEQTL[["data"]], outFilePath = tempdir(),
                 nIter = 100, burnin = 50, nChains = 2, gammaPrior = "hotspot",
                 hyperpar = hyperpar, tmpFolder = "tmp/", output_CPO=TRUE)
 
@@ -155,24 +154,27 @@ fit <- BayesSUR(Y = example_eQTL[["blockList"]][[1]],
 # show the summary information
 summary(fit)
 
-# show the estimated beta, gamma and graph of responeses Gy
-\dontrun{
-estimators <- get.estimator(fit, estimator=c("beta","gamma","Gy"))
-plot(estimators)
+# show the estimated beta, gamma and graph of responses Gy
+plot(fit, estimator=c("beta","gamma","Gy"), type="heatmap")
 
+\dontrun{
 #Set up temporary work directory for saving a pdf figure
 td <- tempdir()
 oldwd <- getwd()
 setwd(td)
 
 # Produce authentic math formulas in the graph
-plot(estimators, fig.tex = TRUE)
+plot(fit, estimator=c("beta","gamma","Gy"), type="heatmap", fig.tex = TRUE)
 system(paste(getOption("pdfviewer"), "ParamEstimator.pdf"))
 setwd(oldwd)
 }
 
 }
 \references{
+Russo D, Van Roy B, Kazerouni A, Osband I, Wen Z (2018). \emph{A tutorial on Thompson sampling.} Foundations and Trends in Machine Learning, 11: 1-96.
+
+Madigan D, York J (1995). \emph{Bayesian graphical models for discrete data.} International Statistical Review, 63: 215–232.
+
 Banterle M, Bottolo L, Richardson S, Ala-Korpela M, Jarvelin MR, Lewin A (2018). \emph{Sparse variable and covariance selection for high-dimensional seemingly unrelated Bayesian regression.} bioRxiv: 467019.
 
 Banterle M#, Zhao Z#, Bottolo L, Richardson S, Lewin A, Zucknick M (2019). \emph{BayesSUR: An R package for high-dimensional multivariate Bayesian variable and covariance selection in linear regression.} URL: https://cran.r-project.org/web/packages/BayesSUR/vignettes/BayesSUR.pdf

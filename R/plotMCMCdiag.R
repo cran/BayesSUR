@@ -1,11 +1,11 @@
-#' @title show trace plots and diagnostic density plots
+#' @title plot MCMC diagnostic plots
 #' @description
 #' Show trace plots and diagnostic density plots of a fitted model object of class "BayesSUR".
 #' @importFrom graphics par plot.default legend title matplot
 #' @importFrom stats density
 #' @importFrom grDevices hcl.colors
-#' @name plot.MCMCdiag
-#' @param x an object of class \code{get.estimator} with \code{estimator="logP"}
+#' @name plotMCMCdiag
+#' @param x an object of class \code{BayesSUR}
 #' @param nbloc number of splits for the last half iterations after substracting burn-in length
 #' @param HIWg diagnostic plot of the response graph. Default is \code{NULL}. \code{HIW="degree"} prints the diagnostic of the degrees of response nodes. \code{HIW="edges"} prints the diagnostic 
 #' of every edge between two responses. \code{HIW="lik"} prints the diagnostic of the posterior likelihoods of the hyperparameters related to the response relationships
@@ -13,31 +13,39 @@
 #' @param ... other arguments for the plots of the log-likelihood and model size
 #' 
 #' @examples
-#' data("example_eQTL", package = "BayesSUR")
+#' data("exampleEQTL", package = "BayesSUR")
 #' hyperpar <- list( a_w = 2 , b_w = 5 )
 #' 
 #' set.seed(9173)
-#' fit <- BayesSUR(Y = example_eQTL[["blockList"]][[1]], 
-#'                 X = example_eQTL[["blockList"]][[2]],
-#'                 data = example_eQTL[["data"]], outFilePath = tempdir(),
+#' fit <- BayesSUR(Y = exampleEQTL[["blockList"]][[1]], 
+#'                 X = exampleEQTL[["blockList"]][[2]],
+#'                 data = exampleEQTL[["data"]], outFilePath = tempdir(),
 #'                 nIter = 100, burnin = 50, nChains = 2, gammaPrior = "hotspot",
 #'                 hyperpar = hyperpar, tmpFolder = "tmp/" )
 #' 
 #' ## check output
-#' MCMCdiag <- get.estimator(fit, estimator = "logP")
-#' plot(MCMCdiag)
+#' plotMCMCdiag(fit)
 #' 
 #' @export
-plot.MCMCdiag <- function(x, nbloc=3, HIWg=NULL, header="", ...){
+plotMCMCdiag <- function(x, nbloc=3, HIWg=NULL, header="", ...){
   
-  if(x$nIter <= 1)
+  if (!inherits(x, "BayesSUR")) 
+    stop("Use only with a \"BayesSUR\" object")
+  
+  x$output[-1] <- paste(x$output$outFilePath,x$output[-1],sep="")
+  logP <- t( as.matrix( read.table(x$output$logP) ) )
+  model_size <- as.matrix( read.table(x$output$model_size) )
+  ncol_Y <- ncol(read.table(x$output$gamma))
+  nIter <- x$input$nIter
+  
+  covariancePrior <- x$input$covariancePrior
+  if(covariancePrior=="HIW" & is.null(x$output$Gvisit))
+    Gvisit <- as.matrix( read.table(x$output$Gvisit) )
+  
+  if(nIter <= 1)
     stop("The diagosis only shows results from more than one MCMC iteration!")
-  if(x$nIter < 4000)
+  if(nIter < 4000)
     message("NOTE: The diagosis only shows results of two iteration points due to less than 4000 MCMC iterations!")
-  
-  nIter <- x$nIter
-  logP <- x$logP
-  ncol_Y <- x$ncol_Y
   
   if(nIter >= 4000){
     logP <- logP[,ncol(logP)-floor(nIter/1000)-1+1:floor(nIter/1000)]
@@ -45,10 +53,10 @@ plot.MCMCdiag <- function(x, nbloc=3, HIWg=NULL, header="", ...){
     logP <- logP[,c(1,ncol(logP))]
   }
   if(is.null(HIWg)){
-    Ptau.indx <- ifelse(x$covariancePrior!="IG", 7, 3)
-    Plik.indx <- ifelse(x$covariancePrior!="IG", 10, 5)
+    Ptau.indx <- ifelse(covariancePrior!="IG", 7, 3)
+    Plik.indx <- ifelse(covariancePrior!="IG", 10, 5)
     #nChain <- x$input$nChains
-    model_size <-x$model_size
+    model_size <- model_size
     if(nIter >= 4000){
       model_size <- rowSums(  model_size[nrow(model_size)-floor(nIter/1000)-1+1:floor(nIter/1000),] ) 
     }else{
@@ -122,11 +130,10 @@ plot.MCMCdiag <- function(x, nbloc=3, HIWg=NULL, header="", ...){
     if(nbloc>1) 
       legend("topleft",title="moving window",legend=paste("set ",1:nbloc," = [",(floor((ncol(logP))/2)+mid*(nbloc:1-1))*1000+1,":",(ncol(logP))*1000,"]",sep=""),col=1:nbloc,lty=1,text.col=1:nbloc, cex=0.8)
   }else{
-    if(x$covariancePrior != "HIW")
+    if(covariancePrior != "HIW")
       stop("The argument HIWg only works for the model with hyper-inverse Wishart prior on the covariance!")
     
     if(HIWg == "degree"){
-      Gvisit <- x$Gvisit
       
       m <- ncol_Y
       node1 <- node2 <- NULL
@@ -144,7 +151,6 @@ plot.MCMCdiag <- function(x, nbloc=3, HIWg=NULL, header="", ...){
     }
     
     if(substr(HIWg, 1, 4) == "edge"){
-      Gvisit <- x$Gvisit
       
       m <- ncol_Y
       node1 <- node2 <- NULL
