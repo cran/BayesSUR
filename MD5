@@ -1,4 +1,4 @@
-91e5fb52e6f369417b6b512f28f15e4b *DESCRIPTION
+321c1603234a9dc3fb02efe78b8b3571 *DESCRIPTION
 99921d54ec275dd5abb260d0a43c1892 *LICENSE
 201297288ba3df8d709ab60e3a6cfc8e *NAMESPACE
 97ddf25f9cd9737c4c47a228ed424f88 *R/BayesSUR.R
@@ -12,7 +12,7 @@ e71e89d259b02ba89bba66cb8453b6be *R/elpd.R
 7c3ca7348483a44a16d158ab16d0c9c4 *R/getEstimator.R
 c476e630d7d554889d999dead82cd07c *R/plot.BayesSUR.R
 11aabfc052b46940d5cf3fae2ad8022e *R/plotCPO.R
-4159c0aefc6463e34b01486f2faad7c1 *R/plotEstimator.R
+e6a13bf1c0f969a096e3c09a95280e31 *R/plotEstimator.R
 4ea26e19cc0df2387871baebf21be2ec *R/plotGraph.R
 fa2361277a427e44f6542f83be261b7f *R/plotMCMCdiag.R
 e90876f897babe77a687084f59cc782a *R/plotManhattan.R
@@ -29,7 +29,7 @@ be6d3c23180951dbb01aaa67a176867a *configure
 2adc12180e51c16cb3182b83c6d534c6 *data/exampleEQTL.rda
 33ebbc7bf3f2b10c75a1b75389dfcd48 *data/exampleGDSC.rda
 7a3f9f776acfe03ae896e8b2352d13b9 *data/targetGene.rda
-243c2ab9593b5b14d6a1d6ad73f56e64 *inst/doc/BayesSUR.pdf
+8ac964165ddec624d86c6670fce4d131 *inst/doc/BayesSUR.pdf
 8167c969ab1536dbf7577301f9ef58a4 *inst/doc/BayesSUR.pdf.asis
 b5fc1cb8880b477e5d1e0ce41fbc01d3 *man/BayesSUR.Rd
 ce1588ebc8f6bdd744d1b738a054fbf6 *man/BayesSUR_internal.Rd
@@ -41,7 +41,7 @@ ad3613b57edd608986bb0af570be7a6f *man/fitted.BayesSUR.Rd
 ae893eef14a8b7d225b423d0bfe737d3 *man/getEstimator.Rd
 53263f9f1fb89cfbac71ddc80d0ed07e *man/plot.BayesSUR.Rd
 3b3367930ede281ee1ca0b0532d4a422 *man/plotCPO.Rd
-9c98024d703e73751bca65fbf12fff72 *man/plotEstimator.Rd
+e0b40b170be5e7f65a4187ca4bc69707 *man/plotEstimator.Rd
 966a90ebe3a4293012917bf1132249e7 *man/plotGraph.Rd
 439c1d7798df1ba5072101ca4a44f4a2 *man/plotMCMCdiag.Rd
 e36242c5ce889a8d169580fa164da14a *man/plotManhattan.Rd
