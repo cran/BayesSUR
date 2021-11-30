@@ -22,10 +22,10 @@
 #' @param nIter number of iterations for the MCMC procedure. Default 10000.
 #' @param burnin number of iterations to discard at the start of the chain. Default is 5000.
 #' @param nChains number of parallel tempered chains to run (default 2). The temperature is adapted during the burnin phase.
-#' @param outFilePath path to where the output files are to be written. The default path is the currect working directory.
+#' @param outFilePath path to where the output files are to be written. 
 #' @param gammaSampler string indicating the type of sampler for gamma, either \code{bandit} for the Thompson sampling inspired samper or \code{MC3} for the usual MC^3 sampler.  See Russo et al.(2018) or Madigan and York (1995) for details.
 #' @param gammaInit gamma initialisation to either all-zeros (\code{0}), all ones (\code{1}), MLE-informed (\code{MLE}) or (default) randomly (\code{R}).
-#' @param mrfG either a matrix or a path to the file containing the G matrix for the MRF prior on gamma (if necessary)
+#' @param mrfG either a matrix or a path to the file containing (the edge list of) the G matrix for the MRF prior on gamma (if necessary)
 #' @param standardize logical flag for X variable standardization. Default is \code{standardize=TRUE}. The coefficients are returned on the standardized scale.
 #' @param standardize.response logical flag for Y standardization. Default is \code{standardize.response=TRUE}.
 #' @param hyperpar a list of named hypeparameters to use instead of the default values. Valid names are mrf_d, mrf_e, a_sigma, b_sigma, a_tau, b_tau, nu, a_eta, b_eta, a_o, b_o, a_pi, b_pi, a_w and b_w. 
@@ -43,7 +43,7 @@
 #' CPO with joint posterior predictive of the response variables (\code{*_CPOsumy_out.txt}) and widely applicable information criterion (\code{*_WAIC_out.txt}). See the return value below for more information.
 #' @param output_Y allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for responses dataset Y.
 #' @param output_X allow ( \code{TRUE} ) or suppress ( \code{FALSE} ) the output for predictors dataset X.
-#' @param tmpFolder the path to a temporary folder where intermediate data files are stored (will be erased at the end of the chain) default to local tmpFolder
+#' @param tmpFolder the path to a temporary folder where intermediate data files are stored (will be erased at the end of the chain). It is specified relative to \code{outFilePath}.
 #' 
 #' @details The arguments \code{covariancePrior} and \code{gammaPrior} specify the model HRR, dSUR or SSUR with different gamma prior. Let \eqn{\gamma_{jk}} be latent indicator variable of each coefficient and \eqn{C} be covariance matrix of response variables.
 #' The nine models specified through the arguments \code{covariancePrior} and \code{gammaPrior} are as follows.
@@ -491,12 +491,6 @@ BayesSUR <- function(data = NULL, Y, X, X_0 = NULL,
   if(outFilePath != tmpFolder)
     unlink(tmpFolder,recursive = TRUE)
   
-  class(print) <- c(class(print), "BayesSUR")
-  class(summary) <- c(class(summary), "BayesSUR")
-  class(fitted) <- c(class(fitted), "BayesSUR")
-  class(predict) <- c(class(predict), "BayesSUR")
-  class(coef) <- c(class(coef), "BayesSUR")
-  class(plot) <- c(class(plot), "BayesSUR")
   return(ret)
 }
 
