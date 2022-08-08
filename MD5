@@ -1,7 +1,7 @@
-5378f2d89affd1b057431967dcbd7760 *DESCRIPTION
+61c5e79bd53f75f4c9ae69e9247ee12b *DESCRIPTION
 60ac3f106cec1af78dd14f53ea7992be *LICENSE
 1c2b159d1438284d67d5281fb5e58450 *NAMESPACE
-dcd6954f1a98014779675f4580d40147 *NEWS.md
+b5351cae242f74b53deb79e1fd325ec9 *NEWS.md
 6a80848de77df688b3621b59d2ed3b5f *R/BayesSUR.R
 e2a84ed5b7168ab67400ac973ddc8185 *R/RcppExports.R
 3cf4ab55f79bc209adf55097b7c00cfe *R/coef.BayesSUR.R
@@ -31,7 +31,7 @@ be6d3c23180951dbb01aaa67a176867a *configure
 afb23996adad94ad91b6c927ca11b281 *data/exampleGDSC.rda
 7a3f9f776acfe03ae896e8b2352d13b9 *data/targetGene.rda
 15a6018aac62bc47ecc8b6982ae0cc19 *inst/CITATION
-fbff4614684c7a2a31ebdcd3cf23281f *inst/doc/BayesSUR.pdf
+eee1ced00c34caf454607e60598254d5 *inst/doc/BayesSUR.pdf
 8167c969ab1536dbf7577301f9ef58a4 *inst/doc/BayesSUR.pdf.asis
 22ea5932e7c938466cc0c1d708e08aef *man/BayesSUR.Rd
 ce1588ebc8f6bdd744d1b738a054fbf6 *man/BayesSUR_internal.Rd
@@ -61,7 +61,7 @@ e028f6c5d45f648533a2350bede4c0dd *src/HRR_Chain.h
 215ed44445e7cf0b27b4b78e9086da2d *src/Makevars.win
 ee2ecd4d202c8c504510ec7796956a15 *src/Parameter_types.h
 6b1859624cb9434eeafd0436312b5d27 *src/RcppExports.cpp
-cc2f5f6cfa2f80457ec4f18441325e5b *src/SUR_Chain.cpp
+055f89e0e1b09d920166c43612ad0cca *src/SUR_Chain.cpp
 6c4096227e9ea18ef5abc1fe3d021c81 *src/SUR_Chain.h
 676574da957061e17cea5413f874ab2b *src/distr.cpp
 9b735c61d9416dfeec945ff6da1afb72 *src/distr.h
