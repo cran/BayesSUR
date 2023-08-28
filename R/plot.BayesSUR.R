@@ -55,15 +55,15 @@
 #'   Y = exampleEQTL[["blockList"]][[1]],
 #'   X = exampleEQTL[["blockList"]][[2]],
 #'   data = exampleEQTL[["data"]], outFilePath = tempdir(),
-#'   nIter = 100, burnin = 0, nChains = 2, gammaPrior = "hotspot",
+#'   nIter = 2, burnin = 0, nChains = 1, gammaPrior = "hotspot",
 #'   hyperpar = hyperpar, tmpFolder = "tmp/"
 #' )
 #'
 #' ## check output
 #' \dontrun{
-#' # Show the interactive plots. Note that it needs at least 2000*(nbloc+1) iterations
-#' # for the diagnostic plots where nbloc=3 by default
-#' plot(fit)
+#' ## Show the interactive plots. Note that it needs at least 2000*(nbloc+1) iterations
+#' ## for the diagnostic plots where nbloc=3 by default
+#' # plot(fit)
 #' }
 #'
 #' ## plot heatmaps of the estimated beta, gamma and Gy
@@ -79,7 +79,7 @@
 #' plot(fit, estimator = "gamma", type = "Manhattan")
 #'
 #' ## print MCMC diagnostic plots
-#' plot(fit, estimator = "logP", type = "diagnostics")
+#' #plot(fit, estimator = "logP", type = "diagnostics")
 #'
 #' @export
 plot.BayesSUR <- function(x, estimator = NULL, type = NULL, ...) {
