@@ -1,22 +1,17 @@
-<style type="text/css">
-pre {
-  overflow-y: auto;
-}
-
-pre[class] {
-  max-height: 350px;
-}
-</style>
 
 # BayesSUR
 
+<!-- badges: start -->
+
 [![CRAN_Status_Badge](http://www.r-pkg.org/badges/version/BayesSUR)](https://cran.r-project.org/package=BayesSUR)
+
+<!-- badges: end -->
 
 This repository contains a [new and improved](inst/doc/BayesSUR.pdf) R package for high-dimensional multivariate Bayesian variable and covariance selection in linear regression, started as an interface to the [Bayesian SSUR](https://github.com/mbant/Bayesian_SSUR) C++-only, UNIX-specific, code.
 
 ## Installation
 
-See the package vignettes [`BayesSUR.pdf`](inst/doc/BayesSUR.pdf) and [`BayesSUR-RE`](vignettes/BayesSUR-RE.html) for more information.
+See the package vignettes [`BayesSUR.pdf`](inst/doc/BayesSUR.pdf) for more information.
 
 ```r
 install.packages("BayesSUR")
@@ -54,7 +49,7 @@ Black blocks indicate correlated residuals of the corresponding response variabl
 
 Load the simulation function `sim.ssur()` as follows.
 
-```{r, warning=FALSE}
+```{r}
 sim.ssur <- function(n, s, p, t0 = 0, seed = 123, mv = TRUE,
                      t.df = Inf, random.intercept = 0, intercept = TRUE) {
   # set seed to fix coefficients
