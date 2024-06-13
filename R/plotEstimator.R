@@ -5,6 +5,7 @@
 #' graph of responses.
 #' @importFrom graphics axis box text mtext par image
 #' @importFrom grDevices colorRampPalette dev.off grey
+#' @importFrom stats sd
 #' @importFrom tikzDevice tikz
 #' @name plotEstimator
 #' 
@@ -28,13 +29,19 @@
 #' @param header the main title
 #' @param header.cex size of the main title for all estimators
 #' @param cex.main size of the title for each estimator
+#' @param mgp the margin line (in mex units) for the axis title, axis labels 
+#' and axis line
 #' @param title.beta a title for the printed "beta"
 #' @param title.gamma a title for the printed "gamma"
 #' @param title.Gy a title for the printed "Gy"
 #' @param tick a logical value specifying whether tickmarks and an axis line 
 #' should be drawn. Default is \code{FALSE}
-#' @param mgp the margin line (in mex units) for the axis title, axis labels 
-#' and axis line
+#' @param beta.type the type of output beta. Default is \code{marginal}, giving 
+#' marginal beta estimation. If \code{beta.type="conditional"}, it gives beta 
+#' estimation conditional on gamma=1
+#' @param Pmax threshold that truncate the estimator "\code{gamma}" or 
+#' "\code{Gy}". Default is \code{0}. If \code{Pmax=0.5} and 
+#' \code{beta.type="conditional"}, it gives median probability model betas
 #' @param ... other arguments
 #'
 #' @examples
@@ -76,16 +83,17 @@ plotEstimator <- function(x, estimator = NULL,
                           header = "", header.cex = 2, tick = FALSE, 
                           mgp = c(2.5, 1, 0), cex.main = 1.5, 
                           title.beta = NA, title.gamma = NA, title.Gy = NA, 
-                          ...) {
+                          beta.type = "marginal", Pmax = 0, ...) {
   if (!inherits(x, "BayesSUR")) {
     stop("Use only with a \"BayesSUR\" object")
   }
   if (sum(!estimator %in% c("beta", "gamma", "Gy")) > 0) {
     stop("Please specify correct argument estimator!")
   }
-
+  
+  beta_hat <- getEstimator(x, estimator = "beta", 
+                           beta.type = beta.type, Pmax = Pmax)
   x$output[-1] <- paste0(x$output$outFilePath, x$output[-1])
-  beta_hat <- as.matrix(read.table(x$output$beta))
   gamma_hat <- as.matrix(read.table(x$output$gamma))
   response_idx <- seq_len(ncol(gamma_hat))
   predictor_idx <- seq_len(nrow(gamma_hat))
@@ -131,9 +139,13 @@ plotEstimator <- function(x, estimator = NULL,
 
     if ("beta" %in% estimator) {
       # floor(100*constant)+100-1 colours that your want in the legend bar which has the white middle color
-      colorbar <- c(colorRampPalette(c(colorScale.beta[1], colorScale.beta[2]))(
-        floor(1000 / (-(max(beta_hat) - min(beta_hat)) / min(beta_hat) - 1))), 
-        colorRampPalette(c(colorScale.beta[2], colorScale.beta[3]))(1000)[-1])
+      if (stats::sd(beta_hat) == 0) {
+        colorbar <- colorRampPalette(c(colorScale.beta[2], colorScale.beta[2]))(1000)
+      } else {
+        colorbar <- c(colorRampPalette(c(colorScale.beta[1], colorScale.beta[2]))(
+          floor(1000 / (-(max(beta_hat) - min(beta_hat)) / min(beta_hat) - 1))), 
+          colorRampPalette(c(colorScale.beta[2], colorScale.beta[3]))(1000)[-1])
+      }
       if (is.na(title.beta)) title.beta <- expression(hat(bold(B)))
 
       image(
