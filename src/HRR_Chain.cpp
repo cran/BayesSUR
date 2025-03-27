@@ -108,7 +108,8 @@ void HRR_Chain::setXtX()
     {
         preComputedXtX = true;
         XtX = data->cols( *predictorsIdx ).t() * data->cols( *predictorsIdx );
-        corrMatX = arma::cor( data->submat(arma::regspace<arma::uvec>(0,nObservations-1), *VSPredictorsIdx ) );  // this is only for values to be selected
+        //corrMatX = arma::cor( data->submat(arma::regspace<arma::uvec>(0,nObservations-1), *VSPredictorsIdx ) );  // this is only for values to be selected
+        corrMatX = arma::cor( data->cols( *VSPredictorsIdx ) );
     }else{
         
         preComputedXtX = false;
@@ -552,10 +553,15 @@ arma::mat& HRR_Chain::getBeta() //const
                 }
             }
             
-            W_k = arma::inv_sympd( W_k ); // might add settings argument arma::inv_sympd( W_k, inv_opts::allow_approx )
-            arma::vec mu_k = W_k * ( data->cols( VS_IN ).t() * data->col( (*outcomesIdx)(k) ) / temperature ); // we divide by temp later
+            // invW_k = arma::inv_sympd( W_k ); // might add settings argument arma::inv_sympd( W_k, inv_opts::allow_approx )
+            arma::mat invW_k;
+            if( !arma::inv_sympd( invW_k, W_k ) )
+            {
+                arma::inv(invW_k, W_k, arma::inv_opts::allow_approx);
+            }
+            arma::vec mu_k = invW_k * ( data->cols( VS_IN ).t() * data->col( (*outcomesIdx)(k) ) / temperature ); // we divide by temp later
             
-            beta.submat(VS_IN,singleIdx_k) = Distributions::randMvNormal( mu_k , W_k );
+            beta.submat(VS_IN,singleIdx_k) = Distributions::randMvNormal( mu_k , invW_k );
         }
         
     }
@@ -906,26 +912,28 @@ double HRR_Chain::logPGamma( const arma::umat& externalGamma , double d , double
     if( gamma_type != Gamma_Type::mrf )
         throw Bad_Gamma_Type ( gamma_type );
     
-    arma::mat externalMRFG = mrfG->cols( arma::linspace<arma::uvec>(0,2,3) );
+    //arma::mat externalMRFG = mrfG->cols( arma::linspace<arma::uvec>(0,2,3) );
     
     double logP = 0.;
     // calculate the linear and quadratic parts in MRF by using all edges of G
     arma::vec gammaVec = arma::conv_to< arma::vec >::from(arma::vectorise(externalGamma));
     double quad_mrf = 0.;
     double linear_mrf = 0.;
-    int count_linear_mrf = 0;
-    for( unsigned i=0; i < (externalMRFG).n_rows; ++i )
+    //int count_linear_mrf = 0; // If the MRF graph matrix has diagonals 0, count_linear_mrf is always 0.
+    for( unsigned i=0; i < mrfG->n_rows; ++i )
     {
-        if( (externalMRFG)(i,0) != (externalMRFG)(i,1) ){
-            quad_mrf += e * 2.0 * gammaVec( (externalMRFG)(i,0) ) * gammaVec( (externalMRFG)(i,1) ) * (externalMRFG)(i,2);
+        if( (*mrfG)(i,0) != (*mrfG)(i,1) ){
+            quad_mrf += 2.0 * gammaVec( (*mrfG)(i,0) ) * gammaVec( (*mrfG)(i,1) ) * (*mrfG)(i,2);
         }else{
-                if( gammaVec( (externalMRFG)(i,0) ) == 1 ){
-                    linear_mrf += d * gammaVec( (externalMRFG)(i,0) ) * (externalMRFG)(i,2);
-                    count_linear_mrf ++;
+                if( gammaVec( (*mrfG)(i,0) ) == 1 ){
+                    linear_mrf += (*mrfG)(i,2); // should this be 'linear_mrf += e * (externalMRFG)(i,2)'?
+                    //count_linear_mrf ++;
                 }
         }
     }
-    logP = arma::as_scalar( linear_mrf + d * (arma::accu( externalGamma ) - count_linear_mrf) + e * 2.0 * quad_mrf );
+    //logP = arma::as_scalar( linear_mrf + d * (arma::accu( externalGamma ) - count_linear_mrf) + e * 2.0 * quad_mrf );
+    // Should logP be the following?
+    logP = arma::as_scalar( d * arma::accu( externalGamma ) + e * (linear_mrf + quad_mrf) );
     
     return logP;
 }
@@ -1103,16 +1111,21 @@ double HRR_Chain::logLikelihood( )
             }
         }
         
-        W_k = arma::inv_sympd( W_k );
-        arma::vec mu_k = W_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) ) - yMean.col(k)) / temperature ); // we divide by temp later
-        //arma::vec mu_k = W_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) )) ); // we divide by temp later
+        // invW_k = arma::inv_sympd( W_k );
+        arma::mat invW_k;
+        if( !arma::inv_sympd( invW_k, W_k ) )
+        {
+            arma::inv(invW_k, W_k, arma::inv_opts::allow_approx);
+        }
+        arma::vec mu_k = invW_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) ) - yMean.col(k)) / temperature ); // we divide by temp later
+        //arma::vec mu_k = invW_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) )) ); // we divide by temp later
         
         double a_sigma_k = a_sigma + 0.5*(double)nObservations/temperature;
         double b_sigma_k = b_sigma + 0.5* arma::as_scalar( (( data->col((*outcomesIdx)(k)) - yMean.col(k) ).t() * (data->col((*outcomesIdx)(k)) - yMean.col(k) )) - ( mu_k.t() * data->cols( (*predictorsIdx)(VS_IN_k) ).t() * ( data->col((*outcomesIdx)(k)) - yMean.col(k) ) ) )/temperature;
         //double b_sigma_k = b_sigma + 0.5* arma::as_scalar( (( data->col((*outcomesIdx)(k)) ).t() * (data->col((*outcomesIdx)(k)) )) - ( mu_k.t() * data->cols( (*predictorsIdx)(VS_IN_k) ).t() * ( data->col((*outcomesIdx)(k)) ) ) )/temperature;
         
         double sign, tmp;
-        arma::log_det(tmp, sign, W_k );
+        arma::log_det(tmp, sign, invW_k );
         logP += 0.5*tmp;
         
         // arma::log_det(tmp, sign, w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
@@ -1129,7 +1142,7 @@ double HRR_Chain::logLikelihood( )
                 double mu_scale, W_scale, t1, t2;
                 
                 mu_scale = (data->col(k))(j) - arma::as_scalar(arma::conv_to<arma::vec>::from(data->row(j))((*predictorsIdx)(VS_IN_k)).t() *mu_k);
-                W_scale = b_sigma_k/a_sigma_k * ( 1. + arma::as_scalar(arma::conv_to<arma::vec>::from(data->row(j))((*predictorsIdx)(VS_IN_k)).t() * W_k * arma::conv_to<arma::vec>::from(data->row(j))((*predictorsIdx)(VS_IN_k))) );
+                W_scale = b_sigma_k/a_sigma_k * ( 1. + arma::as_scalar(arma::conv_to<arma::vec>::from(data->row(j))((*predictorsIdx)(VS_IN_k)).t() * invW_k * arma::conv_to<arma::vec>::from(data->row(j))((*predictorsIdx)(VS_IN_k))) );
                 
                 t1 = std::lgamma(a_sigma_k+0.5) - 0.5*std::log(2.*a_sigma_k*M_PI) - 0.5*std::log( W_scale ) - std::lgamma(a_sigma_k);
                 t2 = -(a_sigma_k+0.5) * std::log( 1. + mu_scale*mu_scale/W_scale/2./a_sigma_k );
@@ -1227,16 +1240,21 @@ double HRR_Chain::logLikelihood( const arma::umat&  externalGammaMask )
             }
         }
         
-        W_k = arma::inv_sympd( W_k );
-        arma::vec mu_k = W_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) ) - yMean.col(k)) / temperature ); // we divide by temp later
-        //arma::vec mu_k = W_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) )) ); // we divide by temp later
+        // invW_k = arma::inv_sympd( W_k );
+        arma::mat invW_k;
+        if( !arma::inv_sympd( invW_k, W_k ) )
+        {
+            arma::inv(invW_k, W_k, arma::inv_opts::allow_approx);
+        }
+        arma::vec mu_k = invW_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) ) - yMean.col(k)) / temperature ); // we divide by temp later
+        //arma::vec mu_k = invW_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) )) ); // we divide by temp later
         
         double a_sigma_k = a_sigma + 0.5*(double)nObservations/temperature;
         double b_sigma_k = b_sigma + 0.5* arma::as_scalar( (( data->col((*outcomesIdx)(k)) - yMean.col(k) ).t() * (data->col((*outcomesIdx)(k)) - yMean.col(k) )) - ( mu_k.t() * data->cols( (*predictorsIdx)(VS_IN_k) ).t() * ( data->col((*outcomesIdx)(k)) - yMean.col(k) ) ) )/temperature;
         //double b_sigma_k = b_sigma + 0.5* arma::as_scalar( (( data->col((*outcomesIdx)(k)) ).t() * (data->col((*outcomesIdx)(k)) )) - ( mu_k.t() * data->cols( (*predictorsIdx)(VS_IN_k) ).t() * ( data->col((*outcomesIdx)(k)) ) ) )/temperature;
         
         double sign, tmp; //sign is needed for the implementation, but we 'assume' that all the matrices are (semi-)positive-definite (-> det>=0)
-        arma::log_det(tmp, sign, W_k );
+        arma::log_det(tmp, sign, invW_k );
         logP += 0.5*tmp;
         
         // arma::log_det(tmp, sign, w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
@@ -1348,16 +1366,21 @@ double HRR_Chain::logLikelihood( arma::umat& externalGammaMask , const arma::uma
             }
         }
         
-        W_k = arma::inv_sympd( W_k );
-        arma::vec mu_k = W_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) ) - yMean.col(k))/temperature ); // we divide by temp later
-        //arma::vec mu_k = W_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) )) ); // we divide by temp later
+        // invW_k = arma::inv_sympd( W_k );
+        arma::mat invW_k;
+        if( !arma::inv_sympd( invW_k, W_k ) )
+        {
+            arma::inv(invW_k, W_k, arma::inv_opts::allow_approx);
+        }
+        arma::vec mu_k = invW_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) ) - yMean.col(k))/temperature ); // we divide by temp later
+        //arma::vec mu_k = invW_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) )) ); // we divide by temp later
         
         double a_sigma_k = a_sigma + 0.5*(double)nObservations/temperature;
         double b_sigma_k = b_sigma + 0.5* arma::as_scalar( (( data->col((*outcomesIdx)(k)) - yMean.col(k) ).t() * (data->col((*outcomesIdx)(k)) - yMean.col(k) )) - ( mu_k.t() * data->cols( (*predictorsIdx)(VS_IN_k) ).t() * ( data->col((*outcomesIdx)(k)) - yMean.col(k) ) ) )/temperature;
         //double b_sigma_k = b_sigma + 0.5* arma::as_scalar( (( data->col((*outcomesIdx)(k)) ).t() * (data->col((*outcomesIdx)(k)) )) - ( mu_k.t() * data->cols( (*predictorsIdx)(VS_IN_k) ).t() * ( data->col((*outcomesIdx)(k)) ) ) )/temperature;
         
         double sign, tmp; //sign is needed for the implementation, but we 'assume' that all the matrices are (semi-)positive-definite (-> det>=0)
-        arma::log_det(tmp, sign, W_k );
+        arma::log_det(tmp, sign, invW_k );
         logP += 0.5*tmp;
         
         // arma::log_det(tmp, sign, w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
@@ -1453,16 +1476,21 @@ double HRR_Chain::logLikelihood( const arma::umat& externalGammaMask , const dou
             }
         }
         
-        W_k = arma::inv_sympd( W_k );
-        arma::vec mu_k = W_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) ) - yMean.col(k)) / temperature ); // we divide by temp later
-        //arma::vec mu_k = W_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) )) ); // we divide by temp later
+        // invW_k = arma::inv_sympd( W_k );
+        arma::mat invW_k;
+        if( !arma::inv_sympd( invW_k, W_k ) )
+        {
+            arma::inv(invW_k, W_k, arma::inv_opts::allow_approx);
+        }
+        arma::vec mu_k = invW_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) ) - yMean.col(k)) / temperature ); // we divide by temp later
+        //arma::vec mu_k = invW_k * ( data->cols( (*predictorsIdx)(VS_IN_k) ).t() * (data->col( (*outcomesIdx)(k) )) ); // we divide by temp later
         
         double a_sigma_k = externalA_sigma + 0.5*(double)nObservations/temperature;
         double b_sigma_k = externalB_sigma + 0.5* arma::as_scalar( (( data->col((*outcomesIdx)(k)) - yMean.col(k) ).t() * (data->col((*outcomesIdx)(k)) - yMean.col(k) )) - ( mu_k.t() * data->cols( (*predictorsIdx)(VS_IN_k) ).t() * ( data->col((*outcomesIdx)(k)) - yMean.col(k) ) ) )/temperature;
         //double b_sigma_k = externalB_sigma + 0.5* arma::as_scalar( (( data->col((*outcomesIdx)(k)) ).t() * (data->col((*outcomesIdx)(k)) )) - ( mu_k.t() * data->cols( (*predictorsIdx)(VS_IN_k) ).t() * ( data->col((*outcomesIdx)(k)) ) ) )/temperature;
         
         double sign, tmp; //sign is needed for the implementation, but we 'assume' that all the matrices are (semi-)positive-definite (-> det>=0)
-        arma::log_det(tmp, sign, W_k );
+        arma::log_det(tmp, sign, invW_k );
         logP += 0.5*tmp;
         
         // arma::log_det(tmp, sign, w * arma::eye<arma::mat>(VS_IN_k.n_elem,VS_IN_k.n_elem) );
