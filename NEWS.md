@@ -1,3 +1,9 @@
+# BayesSUR 2.3-1
+
+* Add color options in `plotNetwork()` corresponding to positive and negative regression coefficients
+* If `standardize = TRUE` in main function `BayesSUR()`, the columns of `X_0` without variation will not be scaled. 
+* Fix bug about index names in `plotEstimator()`
+
 # BayesSUR 2.3-0
 
 * Make `arma::inv` as an alternative to `arma::inv_sympd` in the case of a matrix is singular or not positive definite
